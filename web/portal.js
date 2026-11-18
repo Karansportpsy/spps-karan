@@ -7,7 +7,7 @@
   const toastEl = document.getElementById('toast');
   const theme = (() => { try { return localStorage.getItem('modelc-theme') || 'original'; } catch { return 'original'; } })();
   document.body.dataset.theme = theme;
-  const state = { me: null, csrf: '', view: 'signin', data: {}, preview: null, message: '', freeAccess: false };
+  const state = { me: null, csrf: '', view: 'signin', data: {}, preview: null, message: '', freeAccess: false, directoryBooking: false, book: null };
   const esc = (v = '') => String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const when = s => s ? new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
   const SCOPES = {
@@ -78,6 +78,57 @@
       <div class="card" data-view-panel="${state.view}">${forms[state.view] || forms.signin}</div>
       <p class="muted small" style="margin-top:18px">SPPS Version 1.0 - Free. Accounts require practitioner/admin approval. Not an emergency service. Practitioners sign in at <a href="/studio">the practitioner workspace</a>.</p>
     </main>`;
+  }
+
+  // ------------------------------------------------------------------ booking from the directory (phase 2)
+  // /portal?practitioner=<id> opens this flow: pick a service, then a time, then a short note, then send.
+  const BOOK_KEY = 'spps-book-practitioner';
+  function bookSubjects() {
+    const out = [];
+    if (has('athlete')) out.push([state.me.person_id, `${state.me.display_name} (me)`]);
+    for (const d of state.data.dependants || []) {
+      const scopes = d.authority?.scopes || d.authority?.scope || [];
+      const list = Array.isArray(scopes) ? scopes : String(scopes).split(',');
+      if (d.authority?.status === 'VERIFIED' && list.includes('booking_management')) out.push([d.person_id, d.display_name]);
+    }
+    return out;
+  }
+  function bookingCard() {
+    const b = state.book; if (!b) return '';
+    if (!state.directoryBooking) return `<section class="card" data-section="directory-booking"><h2>Request an appointment</h2><p class="muted">Requesting appointments from the directory is not switched on yet.</p>${btn('Close', 'book-close', 'btn small')}</section>`;
+    if (b.error) return `<section class="card" data-section="directory-booking"><h2>Request an appointment</h2><p>${esc(b.error)}</p>${btn('Close', 'book-close', 'btn small')}</section>`;
+    if (!b.card) return `<section class="card" data-section="directory-booking"><p class="muted">Loading…</p></section>`;
+    if (b.sent) return `<section class="card" data-section="directory-booking"><h2>Request sent</h2><p>${esc(b.sent.message)}</p><p class="small">${esc(b.sent.service)} · ${esc(new Date(b.sent.starts_at).toLocaleString('en-IN'))}</p><p class="muted small">${esc(b.sent.notice || '')}</p>${btn('Done', 'book-close', 'btn small primary')}</section>`;
+    const c = b.card, services = c.services || [];
+    const subjects = bookSubjects();
+    const head = `<h2>Request an appointment with ${esc(c.display_name)}</h2><p class="muted small">Until they approve, the practitioner sees only the athlete's display name, the service, the time and your note. Appointments are free.</p>`;
+    if (!services.length) return `<section class="card" data-section="directory-booking">${head}<p>This practitioner has not listed any services yet.</p>${btn('Close', 'book-close', 'btn small')}</section>`;
+    if (!subjects.length) return `<section class="card" data-section="directory-booking">${head}<p>${has('guardian') ? 'Add the young athlete below and wait until your guardian authority for them, including “Request and manage bookings”, is verified. Then you can request an appointment for them.' : 'Only an athlete account (18 or over) or a verified guardian can request appointments.'}</p>${btn('Close', 'book-close', 'btn small')}</section>`;
+    const svc = services.find(x => String(x.service_id) === String(b.service_id));
+    const step1 = `<form data-form="book-service">
+        <fieldset class="stack"><legend>1. Choose a service</legend>${services.map(x => `<label class="checkline"><input type="radio" name="service_id" value="${x.service_id}" required ${String(b.service_id) === String(x.service_id) ? 'checked' : ''}> <span><b>${esc(x.name)}</b> · ${Number(x.duration_minutes)} min · ${x.mode === 'in_person' ? 'In person' : 'Online'}${x.short_description ? `<br><span class="small muted">${esc(x.short_description)}</span>` : ''}</span></label>`).join('')}</fieldset>
+        <div class="field"><label>For<select name="subject_person_id">${subjects.map(([id, n]) => `<option value="${id}" ${String(b.subject) === String(id) ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label></div>
+        <button class="btn" type="submit">Show available times</button></form>`;
+    let step2 = '';
+    if (svc && b.slots) {
+      step2 = b.slots.length ? `<form data-form="book-send" style="margin-top:14px">
+        <div class="field"><label>2. Choose a time<select name="slot_id" required>${b.slots.map(s => `<option value="${s.slot_id}">${esc(new Date(s.starts_at).toLocaleString('en-IN'))}</option>`).join('')}</select></label></div>
+        ${field('3. A short note (optional, practical details only; leave out health or clinical information)', '<textarea name="note" maxlength="300" rows="2"></textarea>')}
+        <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px" value="">
+        <label class="checkline"><input type="checkbox" name="consent_link" required> I consent to ${esc(c.display_name)} receiving this request and, once they approve it, being linked with ${b.subject === state.me.person_id ? 'me' : 'this athlete'} on SPPS. I can disconnect at any time.</label>
+        <label class="checkline"><input type="checkbox" name="consent_booking" required> I consent to this appointment booking.</label>
+        ${svc.mode === 'online' ? '<label class="checkline"><input type="checkbox" name="consent_video" required> I consent to the session taking place by video.</label>' : ''}
+        <div class="inline-actions"><button class="btn primary" type="submit">4. Send request</button>${btn('Cancel', 'book-close', 'btn small')}</div></form>`
+        : '<p class="muted" style="margin-top:14px">No open times for this service at the moment. Please check again later.</p>';
+    }
+    return `<section class="card" data-section="directory-booking">${head}${step1}${step2}</section>`;
+  }
+  async function openBooking(pid) {
+    state.book = { pid, card: null };
+    render();
+    try { state.book.card = await api(`/api/v2/public/directory/${encodeURIComponent(pid)}`); }
+    catch (err) { state.book.error = err.status === 404 ? 'This practitioner is not listed in the directory.' : err.message; }
+    render();
   }
 
   // ------------------------------------------------------------------ signed in
@@ -252,6 +303,7 @@
         ${field('New password (at least 12 characters)', '<input name="new_password" type="password" required minlength="12" autocomplete="new-password">')}
         <button class="btn small" type="submit">Change password</button></form>
         <div class="inline-actions" style="margin-top:12px">${btn('Sign out on all devices', 'logout-all', 'btn small')}${has('athlete') ? btn('My consent history', 'show-consents', 'btn small', `data-id="${me.person_id}"`) : ''}</div></section>` : ''}
+      ${bookingCard()}
       ${consentCard()}
       ${has('athlete') || has('guardian') ? programmeCard() : ''}
       ${has('athlete') || has('guardian') ? appointmentsCard() : ''}
@@ -323,7 +375,11 @@
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshPortal(); });
   setInterval(refreshPortal, 30000);
 
-  async function enter(me) { state.me = me; state.csrf = me.csrf; state.view = 'home'; state.message = ''; await load(); render(); }
+  async function enter(me) {
+    state.me = me; state.csrf = me.csrf; state.view = 'home'; state.message = ''; await load(); render();
+    let pid = null; try { pid = sessionStorage.getItem(BOOK_KEY); } catch { /* storage unavailable */ }
+    if (pid && /^\d+$/.test(pid)) await openBooking(pid);
+  }
 
   async function showConsents(subject) {
     const items = await api(`/api/portal/consents/${subject}`);
@@ -343,6 +399,7 @@
       await api(a === 'logout' ? '/api/portal/auth/logout' : '/api/portal/auth/logout-all', { method: 'POST' });
       Object.assign(state, { me: null, csrf: '', view: 'signin', data: {}, preview: null, message: 'You are signed out.' }); render(); return;
     }
+    if (a === 'book-close') { state.book = null; try { sessionStorage.removeItem(BOOK_KEY); } catch { /* ignore */ } render(); return; }
     if (a === 'toggle-account') { state.data.showAccount = !state.data.showAccount; render(); return; }
     if (a === 'cancel-preview') { state.preview = null; render(); return; }
     if (a === 'cancel-forms') { state.data.authorityFor = null; state.data.evidenceFor = null; render(); return; }
@@ -421,6 +478,24 @@
       await api(`/api/portal/tasks/${form.dataset.id}/submit`, { method: 'POST', body: { completed: !!f.completed, self_rating: f.self_rating === '' || f.self_rating === undefined ? null : Number(f.self_rating), reflection: f.reflection || '' } });
       await load(); render(); notify('Check-in logged'); return;
     }
+    if (kind === 'book-service') {
+      const b = state.book; b.service_id = f.service_id; b.subject = Number(f.subject_person_id);
+      b.slots = (await api(`/api/portal/directory/${b.pid}/slots?service_id=${encodeURIComponent(f.service_id)}`)).slots;
+      try { b.formToken = (await api('/api/public/form-token')).form_token; } catch { b.formToken = ''; }
+      render(); return;
+    }
+    if (kind === 'book-send') {
+      const b = state.book; const pid = Number(b.pid);
+      const svc = (b.card.services || []).find(x => String(x.service_id) === String(b.service_id));
+      const consent = purpose => api('/api/portal/consents', { method: 'POST', body: { subject_person_id: b.subject, purpose, practitioner_id: pid, decision: 'GRANTED' } });
+      await consent('CASE_LINK'); await consent('APPOINTMENT_BOOKING');
+      if (svc && svc.mode === 'online') await consent('VIDEO_CONSULTATION');
+      b.sent = await api('/api/portal/directory-bookings', { method: 'POST', body: {
+        practitioner_id: pid, service_id: Number(b.service_id), slot_id: Number(f.slot_id), subject_person_id: b.subject,
+        note: f.note || '', form_token: b.formToken || '', website: f.website || '' } });
+      try { sessionStorage.removeItem(BOOK_KEY); } catch { /* ignore */ }
+      await load(); render(); notify('Appointment request sent for practitioner approval.'); return;
+    }
     if (kind === 'load-slots') {
       state.data.slots = { link: f.link_id, items: await api(`/api/portal/links/${f.link_id}/slots`) }; render(); return;
     }
@@ -463,8 +538,13 @@
   }
 
   (async () => {
-    try { const runtime = await api('/api/runtime'); state.freeAccess = !!runtime.free_access; } catch { /* use default until service is available */ }
+    try { const runtime = await api('/api/runtime'); state.freeAccess = !!runtime.free_access; state.directoryBooking = !!runtime.v2_flags?.SPPS_DIRECTORY_BOOKING_ENABLED; } catch { /* use default until service is available */ }
     const params = new URLSearchParams(location.search);
+    if (/^\d+$/.test(params.get('practitioner') || '')) {
+      try { sessionStorage.setItem(BOOK_KEY, params.get('practitioner')); } catch { /* storage unavailable */ }
+      state.message = 'Sign in, or create an account and verify your email, to request an appointment with this practitioner.';
+      history.replaceState({}, '', '/portal');
+    }
     if (params.get('reset')) { state.view = 'reset'; state.data.resetToken = params.get('reset'); }
     if (params.get('verify')) {
       try { await api('/api/portal/auth/verify-email', { method: 'POST', body: { token: params.get('verify') } }); state.message = 'Email verified. You can now sign in.'; }
