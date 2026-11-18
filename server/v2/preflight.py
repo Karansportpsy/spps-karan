@@ -45,15 +45,14 @@ MIGRATION_OBJECTS: dict[str, list[tuple[str, str]]] = {
         ("function", "v2_loop_role"), ("function", "v2_loop_participation"),
     ],
     "0039_v2_directory.sql": [
-        ("table", "directory_profiles"), ("table", "directory_snapshot"), ("table", "directory_enquiries"),
-        ("function", "v2_owner_enquiry_stats"), ("function", "v2_directory_unlist"),
+        ("table", "directory_profiles"), ("table", "directory_snapshot"), ("function", "v2_directory_unlist"),
     ],
     "0040_v2_self_serve.sql": [
-        ("table_identity", "loop_requests"), ("table_identity", "loop_share_requests"),
-        ("table_identity", "loop_share_views"), ("column", "directory_enquiries.ref"),
-        ("column", "directory_enquiries.athlete_id"),
+        ("table_identity", "loop_share_requests"), ("table_identity", "loop_share_views"),
     ],
     "0041_v2_release_hardening.sql": [("function", "v2_open_report_link")],
+    # 0042 only drops enquiry objects (expand/contract), so it is checked by the function it recreates.
+    "0042_v2_appointment_only_directory.sql": [("function", "v2_erase_athlete_records")],
 }
 # flag -> migrations that must have been run before the flag may be switched on
 FLAG_MIGRATIONS: dict[str, list[str]] = {}
@@ -73,7 +72,7 @@ FLAG_MIGRATIONS["SPPS_DIRECTORY_ENABLED"] = ["0039_v2_directory.sql"]
 FLAG_MIGRATIONS["SPPS_SELF_SERVE_ENABLED"] = ["0038_v2_athlete_loop.sql", "0039_v2_directory.sql",
                                               "0040_v2_self_serve.sql"]
 FLAG_VARS["SPPS_DIRECTORY_ENABLED"] = {
-    "SPPS_CRISIS_CONTACTS_TEXT": (r"(?s).{10,600}", "the public directory and every enquiry reply show crisis contacts"),
+    "SPPS_CRISIS_CONTACTS_TEXT": (r"(?s).{10,600}", "the public directory and every booking confirmation show crisis contacts"),
 }
 FLAG_MIGRATIONS["SPPS_AI_FEATURES_ENABLED"] = ["0034_v2_trust_foundation.sql"]
 _MAIL = {

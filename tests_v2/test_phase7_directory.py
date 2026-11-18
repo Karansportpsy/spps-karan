@@ -114,47 +114,13 @@ def test_lapsed_verification_drops_out_and_owner_sees_reverification_due(dir_app
         {"kind": "identity", "checked_on": old}]}, headers=ho).status_code == 422
 
 
-def _form_token(c):
-    return c.get("/api/public/form-token").json()["form_token"]
-
-
-def test_enquiry_reaches_the_inbox_with_crisis_auto_reply_and_owner_sees_times_only(dir_app):
+def test_there_is_no_enquiry_surface_any_more(dir_app):
+    """Booking-only directory: every enquiry route is gone for anonymous, practitioner and owner."""
     p, hp, owner, ho, pid = _published(dir_app)
     anon = fresh_client(dir_app)
-    body = {"name": "Fictional Parent", "contact": "parent.enquiry@example.org", "role": "parent", "sport": "Hockey",
-            "message": "Fictional: looking for support before trials."}
-    res = anon.post(f"/api/v2/public/directory/{pid}/enquiries", json={**body, "form_token": _form_token(anon)})
-    assert res.status_code == 201 and "Fictional helpline" in res.json()["message"]
-    assert any(m["to"] == "parent.enquiry@example.org" and "not a crisis" in m["body"] for m in dir_app.state.v2_outbox)
-    inbox = p.get("/api/v2/directory/enquiries").json()
-    assert inbox[0]["message"].startswith("Fictional: looking")
-    p.post(f"/api/v2/directory/enquiries/{inbox[0]['id']}/responded", headers=hp)
-    stats = owner.get("/api/v2/admin/directory/enquiry-stats").json()
-    assert stats[0]["enquiries"] == 1 and stats[0]["responded"] == 1
-    assert "parent.enquiry" not in str(stats) and "trials" not in str(stats)
-    c = fresh_client(dir_app)
-    login(c, PRACTITIONER_C)
-    assert c.get("/api/v2/directory/enquiries").json() == []
-    assert c.get("/api/v2/admin/directory/enquiry-stats").status_code == 403
-
-
-def test_enquiries_are_bot_checked_throttled_non_clinical_and_only_for_listed_practitioners(dir_app):
-    p, hp, owner, ho, pid = _published(dir_app)
-    anon = fresh_client(dir_app)
-    body = {"name": "Fictional", "contact": "x@example.org", "role": "athlete", "sport": "Hockey", "message": "Hello"}
-    assert anon.post(f"/api/v2/public/directory/{pid}/enquiries", json=body).status_code == 400  # no form token
-    assert anon.post(f"/api/v2/public/directory/{pid}/enquiries",
-                     json={**body, "form_token": _form_token(anon), "website": "spam"}).status_code == 400
-    assert anon.post(f"/api/v2/public/directory/{pid}/enquiries", json={**body, "form_token": _form_token(anon),
-                     "message": "My diagnosis and medication are..."}).status_code == 422
-    codes = [anon.post(f"/api/v2/public/directory/{pid}/enquiries", json={**body, "form_token": _form_token(anon)}).status_code
-             for _ in range(7)]
-    assert codes[:4] == [201] * 4 and 429 in codes  # 5 per IP per hour
-    owner.post(f"/api/v2/admin/directory/{pid}/delist", json={"reason": "Fictional"}, headers=ho)
-    from server.v2 import guards
-    guards.reset()
-    assert anon.post(f"/api/v2/public/directory/{pid}/enquiries",
-                     json={**body, "form_token": _form_token(anon)}).status_code == 404
+    assert anon.post(f"/api/v2/public/directory/{pid}/enquiries", json={"name": "x", "contact": "a@example.org"}).status_code in (404, 405)
+    assert p.get("/api/v2/directory/enquiries").status_code == 404
+    assert owner.get("/api/v2/admin/directory/enquiry-stats").status_code == 404
 
 
 def test_directory_is_off_by_default(app):

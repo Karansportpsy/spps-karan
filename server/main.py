@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, EmailStr, field_validator, model_validato
 from sqlalchemy import select, func, delete, or_, text
 from sqlalchemy.orm import Session
 from .db import make_engine,make_session,Base
-from .models import (Tenant,Practitioner,LoginSession,Service,Inquiry,Athlete,Case,Note,
+from .models import (Tenant,Practitioner,LoginSession,Service,Athlete,Case,Note,
                      Factor,Observation,Intervention,Assignment,Report,Audit,TermsAcceptance,now)
 from .security import verify_password,hash_token,new_token,expiry,is_expired
 from .subscription_routes import active_membership,register_subscription_routes,listing_eligible
@@ -29,7 +29,6 @@ mimetypes.add_type('image/webp', '.webp')
 
 ROOT=Path(__file__).resolve().parent.parent
 WEB=ROOT/'web'
-VALID_TOPICS={'Confidence','Competition pressure','Attention and focus','Injury recovery','Motivation','General enquiry'}
 LIMITS=defaultdict(deque)
 from .security import make_password as _make_password
 DUMMY_PASSWORD_HASH=_make_password(secrets.token_urlsafe(24))
@@ -44,28 +43,6 @@ class LoginIn(BaseModel):
 class SupabaseExchangeIn(BaseModel):
     access_token:str=Field(min_length=100,max_length=8192)
     terms_accepted:bool=False
-class PublicEnquiryIn(BaseModel):
-    service_id:int
-    practitioner_id:int|None=Field(default=None,gt=0)
-    contact_name:str=Field(min_length=2,max_length=120)
-    contact_email:EmailStr
-    contact_phone:str|None=Field(default=None,max_length=24)
-    enquiring_for:Literal['myself','my child / dependent','someone else']
-    sport:str=Field(min_length=2,max_length=80)
-    support_topic:str
-    contact_preference:Literal['email','phone']
-    scheduling_note:str|None=Field(default=None,max_length=250)
-    consent:bool
-    website:str='' # honeypot
-    @field_validator('support_topic')
-    @classmethod
-    def validate_topic(cls,v):
-        if v not in VALID_TOPICS:raise ValueError('Choose a listed support topic')
-        return v
-    @model_validator(mode='after')
-    def required_consent(self):
-        if not self.consent:raise ValueError('Permission to contact is required')
-        return self
 class AthleteIn(BaseModel):
     code:str=Field(min_length=2,max_length=32,pattern=r'^[A-Za-z0-9_-]+$')
     display_name:str=Field(min_length=2,max_length=120)
@@ -114,18 +91,8 @@ class ReportIn(BaseModel):
     title:str=Field(min_length=3,max_length=120)
     audience:Literal['practitioner','athlete','coach']='practitioner'
     body:str=Field(min_length=10,max_length=12000)
-class InquiryUpdate(BaseModel):
-    status:Literal['new','contacted','scheduled','closed']
 class ConsentIn(BaseModel):
     confirmed:bool
-class ConvertIn(BaseModel):
-    athlete_code:str=Field(min_length=2,max_length=32,pattern=r'^[A-Za-z0-9_-]+$')
-    athlete_display_name:str=Field(min_length=2,max_length=120)
-    consent_checked:bool
-    @model_validator(mode='after')
-    def check(self):
-        if not self.consent_checked:raise ValueError('Independent service intake consent must be recorded first')
-        return self
 
 def create_app(database_url=None,init_database=True):
     mode=os.getenv('MODEL_C_ENV','local').lower()
@@ -372,10 +339,6 @@ def create_app(database_url=None,init_database=True):
     def serialize(obj,*attrs):
         return {a:getattr(obj,a) for a in attrs}
 
-    def inquiry_scope(user):
-        # Unassigned marketplace enquiries are handled only by the marketplace administrator.
-        return or_(Inquiry.practitioner_id==user.id,Inquiry.practitioner_id.is_(None)) if user.is_admin else Inquiry.practitioner_id==user.id
-
     @app.get('/health/ready')
     def health_ready():
         from sqlalchemy import text, inspect
@@ -446,42 +409,6 @@ def create_app(database_url=None,init_database=True):
             return {'brand':t.display_name,'services':[{k:r[k] for k in ('id','slug','title','description','duration','price_label')} for r in rows]}
         ss=db.scalars(select(Service).where(Service.tenant_id==t.id,Service.active==True).order_by(Service.id)).all()
         return {'brand':t.display_name,'services':[serialize(s,'id','slug','title','description','duration','price_label') for s in ss]}
-
-    @app.post('/api/public/enquiries',status_code=201)
-    def submit_enquiry(payload:PublicEnquiryIn,request:Request,db:Session=Depends(db_session)):
-        if payload.website:return {'accepted':True,'reference':'Received'}
-        # In-memory rate limit (single worker); replace with a distributed limiter when scaling out.
-        from .hosted_profile import client_ip
-        client=client_ip(request)
-        current=time.monotonic()
-        with rate_lock:
-            window=rate_limits[client]
-            while window and window[0]<current-3600:window.popleft()
-            if len(window)>=8:raise HTTPException(429,'Too many requests; try again later')
-            window.append(current)
-        t=tenant_public(db)
-        if hosted_rls:
-            from sqlalchemy.exc import DBAPIError
-            try:
-                ref=db.execute(text('SELECT spps_dev.submit_public_enquiry(:slug,:sid,:pid,:name,:email,:phone,:forwho,:sport,:topic,:pref,:note)'),{
-                    'slug':t.slug,'sid':payload.service_id,'pid':payload.practitioner_id,'name':payload.contact_name.strip(),
-                    'email':str(payload.contact_email).lower(),'phone':payload.contact_phone,'forwho':payload.enquiring_for,
-                    'sport':payload.sport,'topic':payload.support_topic,'pref':payload.contact_preference,'note':payload.scheduling_note}).scalar_one()
-                db.commit()
-            except DBAPIError as exc:
-                db.rollback()
-                raise HTTPException(404,'Service or practitioner unavailable') from exc
-            return {'accepted':True,'reference':f'MC-{ref:05d}','message':'Your request has been received. This is not an emergency service.'}
-        service=db.scalar(select(Service).where(Service.id==payload.service_id,Service.tenant_id==t.id,Service.active==True))
-        if not service:raise HTTPException(404,'Service unavailable')
-        if payload.practitioner_id is not None:
-            chosen=db.get(Practitioner,payload.practitioner_id)
-            profile=db.scalar(select(PractitionerProfile).where(PractitionerProfile.practitioner_id==payload.practitioner_id))
-            if not chosen or chosen.tenant_id!=t.id or not listing_eligible(db,chosen,profile):
-                raise HTTPException(404,'Practitioner unavailable')
-        e=Inquiry(tenant_id=t.id,service_id=service.id,practitioner_id=payload.practitioner_id,contact_name=payload.contact_name.strip(),contact_email=payload.contact_email.lower(),contact_phone=payload.contact_phone,enquiring_for=payload.enquiring_for,sport=payload.sport,support_topic=payload.support_topic,contact_preference=payload.contact_preference,scheduling_note=payload.scheduling_note,consent_version='contact-v1')
-        db.add(e);db.commit();db.refresh(e)
-        return {'accepted':True,'reference':f'MC-{e.id:05d}','message':'Your request has been received. This is not an emergency service.'}
 
     @app.get('/api/public/supabase-auth-config')
     def supabase_auth_config():
@@ -609,26 +536,7 @@ def create_app(database_url=None,init_database=True):
     def dashboard(user:Practitioner=Depends(get_current),db:Session=Depends(db_session)):
         tid=user.tenant_id
         count=lambda model,clause:db.scalar(select(func.count()).select_from(model).where(*clause))
-        return {'stats':{'athletes':count(Athlete,[Athlete.tenant_id==tid,Athlete.owner_practitioner_id==user.id]),'active_cases':count(Case,[Case.tenant_id==tid,Case.owner_practitioner_id==user.id,Case.status=='active']),'new_enquiries':count(Inquiry,[Inquiry.tenant_id==tid,inquiry_scope(user),Inquiry.status=='new']),'open_drafts':count(Note,[Note.tenant_id==tid,Note.author_id==user.id,Note.state=='draft'])},'enquiries':[enquiry_data(e,db) for e in db.scalars(select(Inquiry).where(Inquiry.tenant_id==tid,inquiry_scope(user)).order_by(Inquiry.created_at.desc()).limit(5))]}
-
-    def enquiry_data(e,db):
-        service=db.get(Service,e.service_id)
-        return {**serialize(e,'id','contact_name','contact_email','contact_phone','enquiring_for','sport','support_topic','contact_preference','scheduling_note','status','linked_athlete_id','created_at'),'service':service.title if service else 'Service'}
-    @app.get('/api/enquiries')
-    def enquiries(user:Practitioner=Depends(get_current),db:Session=Depends(db_session)):
-        return [enquiry_data(e,db) for e in db.scalars(select(Inquiry).where(Inquiry.tenant_id==user.tenant_id,inquiry_scope(user)).order_by(Inquiry.created_at.desc()))]
-    @app.patch('/api/enquiries/{inquiry_id}')
-    def enquiry_status(inquiry_id:int,payload:InquiryUpdate,user:Practitioner=Depends(get_current),db:Session=Depends(db_session)):
-        e=db.scalar(select(Inquiry).where(Inquiry.id==inquiry_id,Inquiry.tenant_id==user.tenant_id,inquiry_scope(user)))
-        if not e:raise HTTPException(404,'Enquiry not found')
-        e.status=payload.status;event(db,user,'enquiry.status','enquiry',e.id);db.commit();return {'ok':True}
-    @app.post('/api/enquiries/{inquiry_id}/convert',status_code=201)
-    def convert_enquiry(inquiry_id:int,payload:ConvertIn,user:Practitioner=Depends(get_current),db:Session=Depends(db_session)):
-        e=db.scalar(select(Inquiry).where(Inquiry.id==inquiry_id,Inquiry.tenant_id==user.tenant_id,inquiry_scope(user)))
-        if not e or e.linked_athlete_id:raise HTTPException(409,'Enquiry missing or already converted')
-        if db.scalar(select(Athlete.id).where(Athlete.tenant_id==user.tenant_id,Athlete.owner_practitioner_id==user.id,Athlete.code==payload.athlete_code)):raise HTTPException(409,'Athlete code already exists')
-        a=Athlete(tenant_id=user.tenant_id,owner_practitioner_id=user.id,code=payload.athlete_code,display_name=payload.athlete_display_name,sport=e.sport,service_consent_recorded_at=now())
-        db.add(a);db.flush();e.linked_athlete_id=a.id;e.status='scheduled';event(db,user,'enquiry.converted','athlete',a.id);db.commit();return {'athlete_id':a.id}
+        return {'stats':{'athletes':count(Athlete,[Athlete.tenant_id==tid,Athlete.owner_practitioner_id==user.id]),'active_cases':count(Case,[Case.tenant_id==tid,Case.owner_practitioner_id==user.id,Case.status=='active']),'open_drafts':count(Note,[Note.tenant_id==tid,Note.author_id==user.id,Note.state=='draft'])}}
 
     @app.get('/api/athletes')
     def list_athletes(user:Practitioner=Depends(get_current),db:Session=Depends(db_session)):

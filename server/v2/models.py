@@ -453,21 +453,3 @@ class DirectorySnapshot(V2Base):
     badges: Mapped[str] = mapped_column(Text)  # JSON [{kind, checked_on}]
     verified_until: Mapped[str] = mapped_column(String(10))
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-
-
-class DirectoryEnquiry(V2Base):
-    __tablename__ = "directory_enquiries"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    tenant_id: Mapped[int] = mapped_column(Integer, index=True)
-    practitioner_id: Mapped[int] = mapped_column(Integer, index=True)
-    name: Mapped[str] = mapped_column(String(120))
-    contact: Mapped[str] = mapped_column(String(250))
-    role: Mapped[str] = mapped_column(String(10))  # athlete | parent | coach
-    sport: Mapped[str] = mapped_column(String(80))
-    message: Mapped[str] = mapped_column(String(600))
-    status: Mapped[str] = mapped_column(String(12), default="new")  # new | responded | closed | accepted | declined
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    account_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # phase 8: sent from an athlete account
-    ref: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)  # phase 8: account's copy
-    athlete_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # phase 8: record it became

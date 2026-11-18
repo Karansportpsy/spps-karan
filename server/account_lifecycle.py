@@ -31,7 +31,7 @@ from sqlalchemy.exc import DBAPIError, OperationalError
 
 from . import supabase_practitioner_auth as sbauth
 from .models import (AppointmentSlot, AssessmentAdministration, AssessmentSubscore, Assignment, Athlete, Booking,
-                     Case, Factor, InjuryCheckIn, InjuryEpisode, Inquiry, Note, Observation, PractitionerProgramme,
+                     Case, Factor, InjuryCheckIn, InjuryEpisode, Note, Observation, PractitionerProgramme,
                      PractitionerProfile, ProgrammeEnquiry, Report, now)
 from .security import verify_password
 
@@ -221,7 +221,6 @@ def build_export(db, user) -> dict:
         "injury_episodes": episodes,
         "injury_checkins": grab("injury_checkins", InjuryCheckIn,
                                 InjuryCheckIn.episode_id.in_([e["id"] for e in episodes]), empty=not episodes),
-        "enquiries": grab("inquiries", Inquiry, Inquiry.practitioner_id == uid),
         "appointment_slots": grab("appointment_slots", AppointmentSlot, AppointmentSlot.practitioner_id == uid),
         "bookings": grab("bookings", Booking, Booking.practitioner_id == uid),
         "programmes": grab("practitioner_programmes", PractitionerProgramme, PractitionerProgramme.practitioner_id == uid),

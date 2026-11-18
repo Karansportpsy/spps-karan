@@ -5,7 +5,7 @@ from datetime import datetime,timezone,timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy import select,func
 from test_support.app import create_app
-from server.models import (Practitioner,PractitionerProfile,AppointmentSlot,Booking,PaymentAllocation,PractitionerSubscription,AssessmentAdministration,AssessmentSubscore,InjuryCheckIn,InjuryEpisode,RetentionHold,Athlete,Inquiry)
+from server.models import (Practitioner,PractitionerProfile,AppointmentSlot,Booking,PaymentAllocation,PractitionerSubscription,AssessmentAdministration,AssessmentSubscore,InjuryCheckIn,InjuryEpisode,RetentionHold,Athlete)
 from server.security import make_password
 
 
@@ -97,7 +97,6 @@ def test_booking_consent_payment_allocation_and_approval(tmp_path,monkeypatch):
     again=c.post(f'/api/internal/test-capture/{bid}',headers=h)
     assert again.status_code==200
     with app.state.DB() as db:assert db.scalar(select(func.count()).select_from(PaymentAllocation))==1
-    assert len(c.get('/api/enquiries').json())==1
     approved=c.post(f'/api/bookings/{bid}/approve',headers=h)
     assert approved.status_code==200
     assert approved.json()['room_id']

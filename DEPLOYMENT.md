@@ -16,7 +16,7 @@ Secrets (passwords, database URLs) go only into Supabase and Render, never into 
 ## 1. Supabase project
 
 1. Create a new project. Note the **project ref** (20 characters, in the project URL) and the region.
-2. SQL editor: run every file in `supabase/sql/` **in filename order**, `00_…` to `42_…` (43 files), one at a time
+2. SQL editor: run every file in `supabase/sql/` **in filename order**, `00_…` to `43_…` (44 files), one at a time
    (v2: the full ordered list is in "v2 release, step by step" below and in `MIGRATIONS.md`).
    Each file is a single transaction: if one fails, nothing from that file is applied. Stop and fix before continuing.
    A project that already ran `00_…` to `30_…` only needs the later files (`31_…`, `32_…`: indexes only), in order.
@@ -164,7 +164,8 @@ below can be undone.
 | 8 | `40_0039_v2_directory.sql` | as above |
 | 9 | `41_0040_v2_self_serve.sql` | as above |
 | 10 | `42_0041_v2_release_hardening.sql` | as above |
-| 11 | `v2_verify.sql` | read-only; compare with the expected values at the top (63 / 37 tables, 0 for the three safety rows) |
+| 11 | `43_0042_v2_appointment_only_directory.sql` | **contract step - run only AFTER the booking-only code is live.** Removes the enquiry tables/functions. Refuses to run (drops nothing) if any enquiry row exists; export or delete those rows first |
+| 12 | `v2_verify.sql` | read-only; compare with the expected values at the top (the table counts drop by 3 after step 11; the three safety rows stay 0) |
 
 The new code refuses to start (and `/health/ready` stays red) until steps 2–10 have run, so run the SQL **before**
 deploying the v2 code. The SQL only adds tables, columns, policies and functions; the v1 code keeps working on a

@@ -50,7 +50,7 @@ def view(principal=None, *, resource="assigned_tasks", link=None,
 
 
 def test_new_metadata_is_independent_and_legacy_keeps_exactly_33_tables():
-    assert len(legacy.Base.metadata.tables) == 33
+    assert len(legacy.Base.metadata.tables) == 32  # 33 before the enquiry table was retired (0042)
     new = IdentityBase.metadata.tables
     assert len(new) == 22  # 13A 11 + 13B 3 + 13C 5 + video + licences, seats
     assert all(name.startswith("spps_identity_dev.") for name in new)

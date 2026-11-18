@@ -98,7 +98,7 @@ is in the in-app guide at `/guide`.
 - [ ] Monitoring, Load & Recovery, Injury Psychology, Interventions, Reports (v1 report draft, PDF/CSV).
 - [ ] Import athletes from a small spreadsheet (check the preview, then import).
 - [ ] Note and report templates in Settings.
-- [ ] Home page: your listing; send a service enquiry to yourself from a private window; see it under Enquiries.
+- [ ] Home page: your listing; request an appointment with yourself from a private window (athlete portal); see it under Appointments.
 
 **B. Second practitioner and approval** — register with another e-mail address you own (private window):
 - [ ] It shows as pending in the Admin Dashboard and cannot open the workspace.
@@ -130,7 +130,7 @@ is in the in-app guide at `/guide`.
 
 **F. Directory** — set `SPPS_DIRECTORY_ENABLED=true` and `SPPS_CRISIS_CONTACTS_TEXT`:
 - [ ] Settings: fill in the public directory profile and submit it. Admin Dashboard: tick the checks, publish.
-- [ ] Open `/find`, filter, send an enquiry from a private window; check the acknowledgement e-mail and your inbox;
+- [ ] Open `/find`, filter, press **Book appointment** from a private window (it opens the athlete portal);
       mark as replied; see the response time in the Admin Dashboard. Delist and confirm it disappears.
 
 **G. Self-serve accounts** — set `SPPS_SELF_SERVE_ENABLED=true` (needs E and F):

@@ -6,16 +6,13 @@
   verification has not lapsed (yearly). Delisting, rejecting or suspending the account, or closing it, deletes
   the snapshot row, so the practitioner disappears at once.
 * Search is by filters only; results are in alphabetical order. No ranking, no reviews, no payments.
-* Enquiry form: name, contact, role, sport and a short non-clinical message; bot check and rate limits (per IP and
-  per practitioner); automatic reply with the crisis contacts; lands in the practitioner's inbox; the owner sees
-  response times only.
+* There is no enquiry form. Contact starts with an appointment request (booking), see bookings.py.
 """
 from __future__ import annotations
 
 import json
 import os
 import re
-import statistics
 from datetime import date, timedelta
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -26,7 +23,7 @@ from sqlalchemy import select
 from ..models import Practitioner, PractitionerProfile, now
 from . import guards
 from .context import Ctx, require_admin
-from .models import DELIVERY, VERIFICATION_KINDS, DirectoryEnquiry, DirectoryProfile, DirectorySnapshot
+from .models import DELIVERY, VERIFICATION_KINDS, DirectoryProfile, DirectorySnapshot
 
 PUBLIC_FIELDS = ("practitioner_id", "display_name", "qualifications", "sports", "athlete_levels", "age_groups",
                  "languages", "delivery", "city", "taking_new_clients", "about")
@@ -64,16 +61,6 @@ class PublishIn(BaseModel):
 
 class DelistIn(BaseModel):
     reason: str = Field(min_length=3, max_length=240)
-
-
-class EnquiryIn(BaseModel):
-    name: str = Field(min_length=2, max_length=120)
-    contact: str = Field(min_length=5, max_length=250)
-    role: str
-    sport: str = Field(min_length=2, max_length=80)
-    message: str = Field(min_length=2, max_length=600)
-    form_token: str = Field(default="", max_length=200)
-    website: str = Field(default="", max_length=200)
 
 
 def remove_from_directory(db, practitioner_id: int) -> None:
@@ -147,24 +134,6 @@ def register(app: FastAPI, ctx: Ctx) -> None:
         db.commit()
         return {"status": "draft"}
 
-    @app.get("/api/v2/directory/enquiries")
-    def inbox(user=Depends(get_current), db=Depends(db_session)):
-        return [{"id": e.id, "name": e.name, "contact": e.contact, "role": e.role, "sport": e.sport,
-                 "message": e.message, "status": e.status, "created_at": e.created_at, "responded_at": e.responded_at,
-                 "from_account": e.account_id is not None, "athlete_id": e.athlete_id}
-                for e in db.scalars(select(DirectoryEnquiry).where(DirectoryEnquiry.practitioner_id == user.id)
-                                    .order_by(DirectoryEnquiry.id.desc()))]
-
-    @app.post("/api/v2/directory/enquiries/{eid}/responded")
-    def mark_responded(eid: int, user=Depends(get_current), db=Depends(db_session)):
-        e = db.scalar(select(DirectoryEnquiry).where(DirectoryEnquiry.id == eid, DirectoryEnquiry.practitioner_id == user.id))
-        if not e:
-            raise HTTPException(404, "Enquiry not found")
-        if not e.responded_at:
-            e.status, e.responded_at = "responded", now()
-            db.commit()
-        return {"status": e.status}
-
     # ------------------------------------------------------------------ owner
     @app.get("/api/v2/admin/directory")
     def owner_queue(user=Depends(get_current), db=Depends(db_session)):
@@ -221,27 +190,6 @@ def register(app: FastAPI, ctx: Ctx) -> None:
         db.commit()
         return {"status": "delisted"}
 
-    @app.get("/api/v2/admin/directory/enquiry-stats")
-    def enquiry_stats(user=Depends(get_current), db=Depends(db_session), auth=Depends(auth_session)):
-        """Response times only: counts and hours. Never names, contacts or messages."""
-        require_admin(user)
-        if db.get_bind().dialect.name == "postgresql":
-            from sqlalchemy import text as _t
-            names = {p.id: p.name for p in auth.scalars(select(Practitioner).where(Practitioner.tenant_id == user.tenant_id))}
-            return [{**dict(r), "name": names.get(r["practitioner_id"], "")} for r in
-                    db.execute(_t("SELECT * FROM spps_dev.v2_owner_enquiry_stats()")).mappings()]
-        per: dict[int, list] = {}
-        for e in db.scalars(select(DirectoryEnquiry).where(DirectoryEnquiry.tenant_id == user.tenant_id)):
-            per.setdefault(e.practitioner_id, []).append(e)
-        names = {p.id: p.name for p in auth.scalars(select(Practitioner).where(Practitioner.tenant_id == user.tenant_id))}
-        out = []
-        for pid, rows in sorted(per.items()):
-            hours = [(_aw(r.responded_at) - _aw(r.created_at)).total_seconds() / 3600 for r in rows if r.responded_at]
-            out.append({"practitioner_id": pid, "name": names.get(pid, ""), "enquiries": len(rows),
-                        "responded": len(hours), "unanswered": len(rows) - len(hours),
-                        "median_response_hours": round(statistics.median(hours), 1) if hours else None})
-        return out
-
     # ------------------------------------------------------------------ public (reads ONLY directory_snapshot)
     def listed(db, tid):
         return select(DirectorySnapshot).where(DirectorySnapshot.tenant_id == tid,
@@ -282,43 +230,8 @@ def register(app: FastAPI, ctx: Ctx) -> None:
             raise HTTPException(404, "No photo")
         return Response(s.photo, media_type="image/webp", headers={"Cache-Control": "public, max-age=3600"})
 
-    @app.post("/api/v2/public/directory/{pid}/enquiries", status_code=201)
-    def public_enquiry(pid: int, body: EnquiryIn, request: Request, db=Depends(db_session)):
-        r = submit_enquiry(pid, body, request, db, account_id=None)
-        return {"accepted": r["accepted"], "message": r["message"]}
-
-    def submit_enquiry(pid, body, request, db, *, account_id, ref=None):
-        guards.check_bot(body.form_token, body.website)
-        guards.limit_ip(request, "directory-enquiry")
-        guards.hit("directory-enquiry-practitioner", str(pid))
-        if body.role not in ("athlete", "parent", "coach"):
-            raise HTTPException(422, "Choose athlete, parent or coach")
-        if CLINICAL_WORDS.search(body.message):
-            raise HTTPException(422, "Please keep this first message short and non-clinical; you can share details "
-                                     "privately with the practitioner later. " + NOT_CRISIS + " " + crisis_text())
-        s = one(db, pid)
-        values = {"t": s.tenant_id, "p": s.practitioner_id, "n": body.name.strip(), "c": body.contact.strip(),
-                  "r": body.role, "s": body.sport.strip(), "m": body.message.strip(), "a": account_id, "ref": ref}
-        # Plain INSERT (no RETURNING): an anonymous caller may add an enquiry but can never read one back.
-        from sqlalchemy import text as _t
-        db.execute(_t("""INSERT INTO directory_enquiries(tenant_id,practitioner_id,name,contact,role,sport,message,status,
-                         created_at,account_id,ref) VALUES (:t,:p,:n,:c,:r,:s,:m,'new',CURRENT_TIMESTAMP,:a,:ref)"""), values)
-        db.commit()
-        reply = (f"Thank you. Your message has been passed to {s.display_name}, who will reply directly. "
-                 f"{NOT_CRISIS} {crisis_text()}")
-        if "@" in body.contact:
-            from .athlete_loop import send_mail
-            send_mail(app, body.contact.strip(), "Your SPPS enquiry", reply)
-        return {"accepted": True, "message": reply, "practitioner_name": s.display_name, "tenant_id": s.tenant_id}
-
-    app.state.v2_directory_enquiry = submit_enquiry  # phase 8: account holders send enquiries through the same path
-
     @app.get("/find")
     def find_page():
         from ..main import WEB
         return FileResponse(WEB / "find.html")
 
-
-def _aw(v):
-    from datetime import timezone
-    return v.replace(tzinfo=timezone.utc) if v is not None and v.tzinfo is None else v

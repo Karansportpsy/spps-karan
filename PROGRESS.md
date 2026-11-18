@@ -264,3 +264,8 @@ or indexed; a role-matrix test found and fixed one non-uniform 404. No database 
 
 Tests (real runs, 2026-11-17): `pytest tests tests_v1 tests_v2` → 544 passed, 1 skipped; Android source tests → 62
 passed; `tests_v2_pg` written (+2), to be run at the database-testing stage.
+
+## Booking-only directory, phase 1 (enquiry purge)
+Removed the four enquiry paths (v1 public, v2 directory, v2 self-serve account enquiries, enquiry-based switching) from
+server, web, legal text and tests; added `migrations/0042_v2_appointment_only_directory.sql` (guarded drop; run after the
+code is live); startup check made name-based; regression tests in `tests/test_enquiry_purge.py`.

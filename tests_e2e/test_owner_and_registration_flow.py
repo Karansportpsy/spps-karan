@@ -43,7 +43,7 @@ def test_serial_sql_builds_and_matches_the_expected_shape(world):
     assert w.sql_steps == 34
     with w.h.admin_conn() as c:
         one = lambda q: c.execute(q).fetchone()[0]
-        assert one("SELECT count(*) FROM pg_tables WHERE schemaname='spps_dev'") == 33
+        assert one("SELECT count(*) FROM pg_tables WHERE schemaname='spps_dev'") == 32
         assert one("SELECT count(*) FROM pg_tables WHERE schemaname='spps_identity_dev'") == 22
         assert one("SELECT count(*) FROM pg_policies WHERE schemaname='spps_dev'") == 41
         assert one("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='spps_dev'") == 13

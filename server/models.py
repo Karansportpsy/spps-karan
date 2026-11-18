@@ -44,26 +44,6 @@ class Service(Base):
     active:Mapped[bool]=mapped_column(Boolean,default=True)
     __table_args__=(UniqueConstraint('tenant_id','slug'),)
 
-class Inquiry(Base):
-    __tablename__='inquiries'
-    id:Mapped[int]=mapped_column(primary_key=True)
-    tenant_id:Mapped[int]=mapped_column(ForeignKey('tenants.id'),index=True)
-    practitioner_id:Mapped[int|None]=mapped_column(ForeignKey('practitioners.id'),nullable=True,index=True)
-    service_id:Mapped[int]=mapped_column(ForeignKey('services.id'))
-    contact_name:Mapped[str]=mapped_column(String(120))
-    contact_email:Mapped[str]=mapped_column(String(250))
-    contact_phone:Mapped[str|None]=mapped_column(String(24),nullable=True)
-    enquiring_for:Mapped[str]=mapped_column(String(30))
-    sport:Mapped[str]=mapped_column(String(80))
-    support_topic:Mapped[str]=mapped_column(String(60))
-    contact_preference:Mapped[str]=mapped_column(String(24))
-    scheduling_note:Mapped[str|None]=mapped_column(String(250),nullable=True)
-    consent_version:Mapped[str]=mapped_column(String(30))
-    consent_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
-    status:Mapped[str]=mapped_column(String(32),default='new')
-    linked_athlete_id:Mapped[int|None]=mapped_column(ForeignKey('athletes.id'),nullable=True)
-    created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
-
 class Athlete(Base):
     __tablename__='athletes'
     id:Mapped[int]=mapped_column(primary_key=True)

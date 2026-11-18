@@ -105,8 +105,8 @@ def inspect_stack(root: Path = ROOT) -> tuple[list[str], dict[str, object]]:
     if model.is_file():
         model_text = model.read_text(encoding="utf-8")
         table_count = len(re.findall(r"^\s*__tablename__\s*=", model_text, re.MULTILINE))
-        if table_count != 33:
-            issues.append(f"existing 33-table ORM baseline altered: {table_count} tables")
+        if table_count != 32:
+            issues.append(f"existing 32-table ORM baseline altered: {table_count} tables")
     config = root / "android/app/build.gradle"
     if config.is_file():
         source = config.read_text(encoding="utf-8")

@@ -20,7 +20,7 @@ def browser():
         b.close()
 
 
-def test_find_page_lists_badges_and_sends_an_enquiry_with_the_form_token(browser):
+def test_find_page_lists_badges_and_offers_booking_not_an_enquiry(browser):
     posts, queries = [], []
 
     def answer(route):
@@ -51,12 +51,7 @@ def test_find_page_lists_badges_and_sends_an_enquiry_with_the_form_token(browser
     page.locator("form[data-f=filters] button").click()
     page.wait_for_timeout(300)
     assert "sport=Hockey" in queries[-1]
-    page.locator("[data-enquire]").click()
-    form = page.locator("form[data-f=enquiry]")
-    form.locator("[name=name]").fill("Fictional Parent")
-    form.locator("[name=contact]").fill("p@example.org")
-    form.locator("[name=sport]").fill("Hockey")
-    form.locator("[name=message]").fill("Fictional question")
-    form.locator("button").click()
-    page.wait_for_selector("text=Not a crisis service")
-    assert posts[0]["form_token"] == "1.n.s" and posts[0]["website"] == ""
+    assert page.locator("[data-enquire]").count() == 0 and page.locator("form[data-f=enquiry]").count() == 0
+    link = page.locator("a:has-text('Book appointment')")
+    assert link.count() == 1 and "/portal?practitioner=" in link.get_attribute("href")
+    assert posts == [], "the find page must not post anything"

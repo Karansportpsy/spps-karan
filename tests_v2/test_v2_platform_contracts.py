@@ -116,7 +116,7 @@ def test_v1_files_of_the_reference_were_not_edited():
 def test_v1_metadata_shape_is_unchanged_and_v2_tables_are_separate():
     from server.db import Base
     from server.v2.models import V2Base
-    assert len(Base.metadata.tables) == 33
+    assert len(Base.metadata.tables) == 32
     assert not set(Base.metadata.tables) & set(V2Base.metadata.tables)
     for name in V2Base.metadata.tables:
         assert not name.startswith("spps_identity_dev"), "identity tables never go in the clinical models"

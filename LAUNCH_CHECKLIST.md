@@ -10,11 +10,11 @@ line in your own launch log with the date and who checked it. Nothing here is do
       liability cap (INR 5,000), grievance timelines (7/30 days), add a postal address if advised, and confirm (data
       controller, purposes, legal basis, retention, rights, contact for requests, cross-border hosting).
 - [ ] Athlete and guardian consent screens (athlete app: link consent, guardian consent, "who sees what" lists).
-- [ ] Directory pages and the enquiry auto-reply: "not a crisis or emergency service" wording; that listing is not
+- [ ] Directory pages and the booking confirmation: "not a crisis or emergency service" wording; that listing is not
       an endorsement; verified-badge wording ("checks made by the platform owner on <date>").
 - [ ] Coach / club report links: the notice on the report page ("shared with the athlete's approval; do not
       forward") and the e-mail sent to the coach.
-- [ ] Account deletion wording: what is deleted (account, sign-in, invitations, enquiry copies) and what each
+- [ ] Account deletion wording: what is deleted (account, sign-in, invitations) and what each
       practitioner keeps in their own record (see `DECISIONS.md` D-805).
 - [ ] Practitioner terms: retention duties for records that remain after an athlete leaves or deletes the account,
       and for practitioner closure (`SPPS_PRACTITIONER_CLOSURE_ENABLED`).
@@ -41,7 +41,7 @@ line in your own launch log with the date and who checked it. Nothing here is do
 
 ## 4. Crisis contacts
 
-- [ ] Set `SPPS_CRISIS_CONTACTS_TEXT` (public directory and every enquiry auto-reply) with numbers you have
+- [ ] Set `SPPS_CRISIS_CONTACTS_TEXT` (public directory and every booking confirmation) with numbers you have
       called and confirmed for the countries you serve.
 - [ ] Admin Dashboard → Crisis contacts (shown on every athlete and guardian screen): same check.
 - [ ] Re-check both every six months; note the date.

@@ -1,5 +1,5 @@
 """Phase 8 on PostgreSQL: an unlinked account exposes nothing to any practitioner, an account sees only its own
-enquiry copies, report shares are visible only to the practitioner who asked and the right approver while the link
+report shares are visible only to the practitioner who asked and the right approver while the link
 is open, only the server-side auth role can delete identity data, and the whole self-serve flow runs over
 PostgreSQL with every real flag on."""
 from __future__ import annotations
@@ -21,28 +21,14 @@ def _account(id_superuser, role="athlete"):
              {"e": f"p8.{tag}@example.org", "r": role})[0][0]
 
 
-def _request(id_superuser, account, person):
-    return q(id_superuser, """INSERT INTO spps_identity_dev.loop_requests(account_id,tenant_id,practitioner_id,
-             practitioner_name,ref,sport,message,status,created_at) VALUES (%(a)s,%(t)s,%(p)s,'Dr Fictional',%(r)s,
-             'Hockey','Fictional','sent',now()) RETURNING id""",
-             {"a": account, "t": person["tenant_id"], "p": person["id"], "r": uuid.uuid4().hex})[0][0]
-
-
-def test_unlinked_account_and_its_enquiry_copies_are_invisible_to_practitioners_and_other_accounts(pgenv, people,
-                                                                                                  id_superuser):
+def test_unlinked_account_is_invisible_to_practitioners_and_other_accounts(pgenv, people, id_superuser):
     mine, other = _account(id_superuser), _account(id_superuser)
-    rid = _request(id_superuser, mine, people["b"])
     with as_identity(pgenv, "spps_identity_portal", account=mine) as a:
-        assert q(a, "SELECT count(*) FROM loop_requests WHERE id=%(r)s", {"r": rid})[0][0] == 1
         assert denied(a, "SELECT * FROM loop_accounts LIMIT 1")  # portal role has no grant on accounts at all
     with as_identity(pgenv, "spps_identity_portal", account=other) as o:
-        assert q(o, "SELECT count(*) FROM loop_requests WHERE id=%(r)s", {"r": rid})[0][0] == 0
-        assert denied(o, """INSERT INTO loop_requests(account_id,tenant_id,practitioner_id,practitioner_name,ref,sport,
-                            message,status,created_at) VALUES (%(a)s,1,1,'x',%(r)s,'x','x','sent',now())""",
-                      {"a": mine, "r": uuid.uuid4().hex})
+        assert q(o, "SELECT count(*) FROM loop_links WHERE athlete_account_id=%(a)s", {"a": mine})[0][0] == 0
     for person in (people["a"], people["b"], people["owner"]):
         with as_identity(pgenv, "spps_identity_portal", practitioner=person) as p:
-            assert q(p, "SELECT count(*) FROM loop_requests WHERE account_id=%(a)s", {"a": mine})[0][0] == 0
             assert q(p, "SELECT count(*) FROM loop_links WHERE athlete_account_id=%(a)s OR guardian_account_id=%(a)s",
                      {"a": mine})[0][0] == 0
             assert denied(p, "SELECT * FROM loop_accounts LIMIT 1")
@@ -102,25 +88,12 @@ def test_only_the_auth_role_deletes_identity_data_and_portal_cannot_reach_clinic
     acc = _account(id_superuser)
     with as_identity(pgenv, "spps_identity_portal", account=acc) as p:
         assert denied(p, "DELETE FROM loop_accounts WHERE id=%(a)s", {"a": acc})
-        assert denied(p, "DELETE FROM loop_requests WHERE account_id=%(a)s", {"a": acc})
-        for t in ("athletes", "directory_enquiries", "shared_reports", "report_consents"):
+        for t in ("athletes", "shared_reports", "report_consents"):
             assert denied(p, f"SELECT * FROM spps_dev.{t} LIMIT 1"), t
     with as_identity(pgenv, "spps_identity_auth") as auth:
         with auth.cursor() as cur:
             cur.execute("DELETE FROM loop_accounts WHERE id=%(a)s", {"a": acc})
             assert cur.rowcount == 1
-
-
-def test_enquiry_outcomes_are_constrained_and_anonymous_callers_still_cannot_read(pgenv, people, superuser):
-    _snapshot(superuser, people["b"])
-    with as_role(pgenv, "spps_dev_app") as anon:
-        q(anon, """INSERT INTO directory_enquiries(tenant_id,practitioner_id,name,contact,role,sport,message,ref)
-                   VALUES (%(t)s,%(p)s,'Fictional','x@example.org','athlete','Hockey','Fictional',%(r)s)""",
-          {"t": people["b"]["tenant_id"], "p": people["b"]["id"], "r": uuid.uuid4().hex})
-        assert q(anon, "SELECT count(*) FROM directory_enquiries")[0][0] == 0
-    with as_role(pgenv, "spps_dev_app", people["b"]) as b:
-        assert denied(b, "UPDATE directory_enquiries SET status='spam'")
-        assert denied(b, "UPDATE directory_enquiries SET practitioner_id=%(p)s", {"p": people["a"]["id"]})
 
 
 # ------------------------------------------------------------------ the whole flow over PostgreSQL
@@ -148,23 +121,13 @@ def test_full_self_serve_flow_over_postgresql_with_every_real_flag(ss_pg_app, pe
                                       json={"token": _token(ss_pg_app, email, "verify")}).status_code == 200
     ha = {"X-CSRF-Token": a.post("/api/v2/portal/auth/login", json={"email": email,
                                  "password": "Fictional-pass-2026"}).json()["csrf"]}
-    ft = a.get("/api/public/form-token").json()["form_token"]
-    sent = a.post("/api/v2/portal/enquiries", json={"practitioner_id": people["b"]["id"], "sport": "Hockey",
-                                                    "message": "Fictional: routine help", "form_token": ft,
-                                                    "website": ""}, headers=ha)
-    assert sent.status_code == 201, sent.text
     p = TestClient(ss_pg_app)
     hp = pg_login(p, people["b"])
-    other = TestClient(ss_pg_app)
-    pg_login(other, people["a"])
-    assert all(e["contact"] != email for e in other.get("/api/v2/directory/enquiries").json())
-    e = next(x for x in p.get("/api/v2/directory/enquiries").json() if x["contact"] == email)
-    acc = p.post(f"/api/v2/directory/enquiries/{e['id']}/accept", json={
-        "display_name": "Fictional PG Self", "code": f"PG8-{tag}", "age_group": "18-24",
-        "service_consent_confirmed": True}, headers=hp)
-    assert acc.status_code == 201, acc.text
-    link_id, athlete_id = acc.json()["link_id"], acc.json()["athlete_id"]
-    assert a.get("/api/v2/portal/enquiries").json()["data"][0]["status"] == "accepted"
+    athlete_id = p.post("/api/athletes", json={"code": f"PG8-{tag}", "display_name": "Fictional PG Self", "sport": "Hockey",
+                                               "service_consent_recorded": True}, headers=hp).json()["id"]
+    inv_sent = p.post(f"/api/v2/loop/athletes/{athlete_id}/invite", json={"email": email}, headers=hp)
+    assert inv_sent.status_code == 201, inv_sent.text
+    link_id = inv_sent.json()["link_id"]
     chrome = TestClient(ss_pg_app)  # Chrome from the Android app
     hc = {"X-CSRF-Token": chrome.post("/api/v2/portal/auth/login", json={"email": email,
                                       "password": "Fictional-pass-2026"}).json()["csrf"]}
