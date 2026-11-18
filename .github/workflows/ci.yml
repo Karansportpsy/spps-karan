@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  # Pushes to the default branch, and every pull request. Not every branch push: a branch with an open
+  # pull request would otherwise run the whole suite twice.
+  push:
+    branches: [release/v1.0-live, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-tests:
+    name: Unit and contract tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.15 is the production image (Dockerfile); 3.13 is the previously validated baseline.
+        python-version: ['3.13', '3.15']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements-*.txt
+      - run: pip install -r requirements-development.txt
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m pytest tests tests_v1 -q -p no:cacheprovider
+      - run: python -m tools.verify_full_stack
+
+  e2e-postgres:
+    name: End-to-end on throwaway PostgreSQL (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.13', '3.15']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements-*.txt
+      - run: pip install -r requirements-development.txt
+      - name: Throwaway PostgreSQL with TLS (127.0.0.1:55440, never a real database)
+        run: |
+          if ! ls -d /usr/lib/postgresql/*/bin >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y postgresql
+          fi
+          tests_e2e/pg_tls_cluster.sh | grep '^export' >> "$RUNNER_TEMP/e2e.env"
+      - name: Run end-to-end tests
+        run: |
+          source "$RUNNER_TEMP/e2e.env"
+          python -m pytest tests_e2e -q -p no:cacheprovider
+
+  web-and-android-source:
+    name: Web parity and Android source tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run android:sync
+      - name: www/ must be byte-identical to a fresh stage of web/
+        run: git diff --exit-code -- www
+      - run: npm run test:android
+
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.15'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: pip install pip-audit==2.10.1
+      - run: pip-audit -r requirements-hosted.txt
+      - run: npm audit --audit-level=high
+
+  docker-build:
+    name: Production image builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -t spps-ci:${{ github.sha }} .
+      - name: Image starts and serves the app (local profile, throwaway SQLite, no secrets)
+        run: |
+          docker run -d --name spps-smoke -p 10000:10000 \
+            -e MODEL_C_ENV=local -e DATABASE_URL=sqlite:////tmp/smoke.db -e MODEL_C_INIT_DB=true \
+            -e MODEL_C_COOKIE_SECURE=false spps-ci:${{ github.sha }}
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:10000/health/live && break; sleep 1; done
+          curl -fsS http://127.0.0.1:10000/health/live | grep -q '"status":"ok"'
+          for path in / /register /studio /assets/app.js /assets/styles.css /assets/spps-v1-logo.png; do
+            curl -fsS -o /dev/null "http://127.0.0.1:10000$path"
+          done
+          curl -fsSI http://127.0.0.1:10000/ | grep -qi '^content-security-policy:'
+          test "$(docker exec spps-smoke id -un)" = spps
+      - name: Image carries no demo data, stock portraits or demo accounts
+        run: |
+          docker exec spps-smoke sh -c 'test ! -e server/local_demo && test ! -e server/seed.py && test ! -e test_support && test ! -e tests'
+          docker exec spps-smoke sh -c '! find . -name "portrait_*.webp" | grep -q .'
+          docker exec spps-smoke sh -c '! grep -rIlE "modelc\.test|DemoOnly|DEMO_PRACTITIONERS|/api/internal/test-|test_support" server web migrations'
+          test "$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:10000/assets/avatars/portrait_01.webp)" = 404
+          curl -fsS -o /dev/null http://127.0.0.1:10000/assets/avatars/placeholder.svg
+      - if: always()
+        run: docker logs spps-smoke 2>&1 | tail -40 || true

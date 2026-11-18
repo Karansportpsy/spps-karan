@@ -1,0 +1,24 @@
+# M0: DISPOSABLE PostgreSQL for automated tests ONLY. Fictional records only.
+# Storage is tmpfs (RAM): no named or anonymous volume is created, and
+# `docker compose -p spps-test-ephemeral down` discards everything.
+# Managed exclusively by tools/ephemeral_db.py. Never point this at, or reuse,
+# any protected project (55432, 55433, 55434, 60528, 54322).
+name: spps-test-ephemeral
+services:
+  database:
+    image: postgres:17.11
+    ports:
+      - "127.0.0.1:${SPPS_EPHEMERAL_PORT:-55436}:5432"   # 55437 for slot 2 (tools.ephemeral_db sets it)
+    environment:
+      POSTGRES_DB: spps_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${SPPS_EPHEMERAL_PASSWORD:?Generated per run by tools.ephemeral_db}
+    tmpfs:
+      - /var/lib/postgresql/data:rw,size=512m
+    labels:
+      org.spps.purpose: "ephemeral-test-only"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d spps_dev"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

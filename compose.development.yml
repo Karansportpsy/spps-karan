@@ -1,0 +1,19 @@
+# Optional local PostgreSQL only. No Render/Supabase resources or deployments.
+services:
+  database:
+    image: postgres:17.11
+    ports:
+      - "127.0.0.1:55432:5432"
+    environment:
+      POSTGRES_DB: spps_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${SPPS_DEV_POSTGRES_PASSWORD:?Set a local disposable database password}
+    volumes:
+      - spps_development:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d spps_dev"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  spps_development:

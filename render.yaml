@@ -1,0 +1,106 @@
+# SPPS production web service (phase 1: practitioner registration, owner approval,
+# directory and workspace). Reference definition for a NEW Render service.
+# Render builds this Dockerfile from the connected private GitHub repository (spps-ready).
+# Alternatively, build the image locally, push it to a registry and create the
+# service from "Existing Image"; then copy the environment variables below by hand.
+# No database is provisioned here: the database is Supabase.
+services:
+  - type: web
+    name: spps-production
+    runtime: docker
+    region: singapore
+    plan: free
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health/ready
+    autoDeployTrigger: 'off'
+    numInstances: 1
+    envVars:
+      - key: MODEL_C_ENV
+        value: production
+      - key: SPPS_HOSTED_RLS
+        value: 'true'
+      - key: SPPS_SINGLE_DATABASE_SCHEMAS
+        value: 'true'
+      - key: SPPS_SUPABASE_PROJECT_REF
+        sync: false
+      - key: SPPS_CLINICAL_DATABASE_NAME
+        value: postgres
+      - key: SPPS_IDENTITY_DATABASE_NAME
+        value: postgres
+      - key: MODEL_C_PUBLIC_TENANT
+        value: winmindperform
+      - key: SPPS_BETA_V1_FREE
+        value: 'true'
+      - key: SPPS_PAYMENT_PROVIDER
+        value: disabled
+      # Phase 1 launch: practitioner registration, owner approval, directory, workspace.
+      # Athlete/guardian portal stays off until SMTP, TURN and safeguarding checks pass.
+      - key: SPPS_PORTAL_ENABLED
+        value: 'false'
+      - key: SPPS_SUPABASE_AUTH_ENABLED
+        value: 'true'
+      - key: SPPS_OWNER_EMAIL
+        value: karansportpsy@gmail.com
+      - key: SPPS_OWNER_BOOTSTRAP_ENABLED
+        value: 'true'
+      - key: MODEL_C_INIT_DB
+        value: 'false'
+      - key: MODEL_C_SEED_DEMO
+        value: 'false'
+      - key: MODEL_C_COOKIE_SECURE
+        value: 'true'
+      - key: SPPS_TRUSTED_PROXY_HOPS
+        value: '1'
+      # Owner sets only after protected schema, the serial SQL set and
+      # all four restricted DB roles have been verified.
+      - key: SPPS_PRODUCTION_RELEASE_APPROVED
+        sync: false
+      - key: MODEL_C_ALLOWED_HOSTS
+        sync: false
+      - key: SPPS_PUBLIC_BASE_URL
+        sync: false
+      - key: SPPS_SUPABASE_URL
+        sync: false
+      - key: SPPS_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SPPS_SMTP_HOST
+        sync: false
+      - key: SPPS_SMTP_USERNAME
+        sync: false
+      - key: SPPS_SMTP_PASSWORD
+        sync: false
+      - key: SPPS_SMTP_FROM
+        sync: false
+      - key: SPPS_SMTP_SENDER
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SPPS_AUTH_DATABASE_URL
+        sync: false
+      - key: SPPS_IDENTITY_AUTH_DATABASE_URL
+        sync: false
+      - key: SPPS_IDENTITY_PORTAL_DATABASE_URL
+        sync: false
+      # v2: bot-check secret (generate in Render, 32+ characters) and feature flags (all off until switched on
+      # in the order given in DEPLOYMENT.md).
+      - key: SPPS_FORM_TOKEN_SECRET
+        generateValue: true
+      - key: SPPS_AI_FEATURES_ENABLED
+        value: "false"
+      - key: SPPS_ATHLETE_LOOP_ENABLED
+        value: "false"
+      - key: SPPS_DIRECTORY_ENABLED
+        value: "false"
+      - key: SPPS_CRISIS_CONTACTS_TEXT
+        sync: false
+      - key: SPPS_SELF_SERVE_ENABLED
+        value: "false"
+      - key: SPPS_REPORT_LINKS_ENABLED
+        value: "false"
+      - key: SPPS_PRACTITIONER_CLOSURE_ENABLED
+        value: "false"
+      - key: SPPS_FIELD_KEYS
+        sync: false
+      - key: SPPS_FIELD_KEY_CURRENT
+        value: k1

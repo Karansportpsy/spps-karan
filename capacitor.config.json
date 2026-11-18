@@ -1,0 +1,16 @@
+{
+  "appId": "com.winmindperform.spps.beta15",
+  "appName": "SPPS Free 1.0",
+  "webDir": "www",
+  "server": {
+    "url": "https://app.winmindperform.com/studio",
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover",
+      "style": "LIGHT"
+    }
+  }
+}

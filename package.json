@@ -1,0 +1,28 @@
+{
+  "name": "spps-1-0-free",
+  "version": "1.0.0-free",
+  "private": true,
+  "description": "SPPS Version 1.0 - Free: web application source and HTTPS-only Android app",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "web:stage": "node scripts/stage-web.mjs",
+    "android:configure:debug": "node scripts/configure-android.mjs debug",
+    "android:configure:bundle": "node scripts/configure-android.mjs bundle",
+    "android:init": "node scripts/init-android.mjs",
+    "android:patch": "node scripts/apply-native-overrides.mjs",
+    "android:sync": "npm run web:stage && npx cap sync android && npm run android:patch",
+    "android:open": "npx cap open android",
+    "test:android": "node --test tests_android/*.test.mjs",
+    "android:configure:hosted-beta": "node scripts/configure-android.mjs hosted-beta",
+    "android:web": "npm run web:stage && node scripts/sync-android-web.mjs"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.6.0",
+    "@capacitor/android": "8.6.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0"
+  }
+}

@@ -1,0 +1,60 @@
+# SPPS-VIDEO-001: DISPOSABLE TURN relay for local/physical-device WebRTC validation ONLY.
+# Managed exclusively by tools/turn_bench.py (never `docker compose` by hand against other projects).
+#
+# * Clients reach it ONLY over TCP 127.0.0.1:3478 (Windows Chrome directly; the phone via
+#   `adb reverse tcp:3478 tcp:3478`). No UDP/TLS listener, nothing exposed on a LAN interface.
+# * Relayed media stays inside the container: both peers are relay-only, so every allocation lives
+#   on RELAY_IP and the only permitted peer address is RELAY_IP itself (relay-to-relay). No relay
+#   port is published, so no Windows Firewall rule is needed or created.
+# * Short-lived credentials: coturn `use-auth-secret`; the API derives expiring HMAC credentials.
+#   The secret is generated per `up` into output/device-validation/turn.env (git-ignored).
+# * No volumes or bind mounts; read-only root filesystem; tmpfs scratch; all capabilities dropped.
+name: spps-test-turn
+networks:
+  turnnet:
+    ipam:
+      config:
+        - subnet: 10.231.77.0/28
+services:
+  turn:
+    image: coturn/coturn:4.6.3
+    networks:
+      turnnet:
+        ipv4_address: 10.231.77.10
+    ports:
+      - "127.0.0.1:3478:3478/tcp"
+    read_only: true
+    tmpfs:
+      - /var/lib/coturn
+      - /tmp
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]   # turnserver binary carries this file capability; exec fails without it
+    security_opt: ["no-new-privileges:true"]
+    labels:
+      org.spps.purpose: "turn-test-bench-only"
+    command:
+      - --listening-ip=10.231.77.10
+      - --listening-port=3478
+      - --relay-ip=10.231.77.10
+      - --min-port=49160
+      - --max-port=49199
+      - --no-udp
+      - --no-tls
+      - --no-dtls
+      - --no-tcp-relay
+      - --use-auth-secret
+      - --static-auth-secret=${SPPS_TURN_SECRET:?Generated per run by tools.turn_bench}
+      - --realm=spps-test-turn
+      - --fingerprint
+      - --no-cli
+      - --no-multicast-peers
+      - --denied-peer-ip=0.0.0.0-255.255.255.255
+      - --denied-peer-ip=::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+      - --allowed-peer-ip=10.231.77.10
+      - --user-quota=12
+      - --total-quota=60
+      - --stale-nonce=600
+      - --no-software-attribute
+      - --no-rfc5780
+      - --log-file=stdout
+      - --simple-log

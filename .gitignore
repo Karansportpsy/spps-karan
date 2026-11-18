@@ -1,0 +1,45 @@
+# Secrets and local credentials: only *.example env files are ever committed.
+.env
+.env.*
+!.env.example
+!.env.staging.example
+!.env.integration.example
+!.env.production.example
+!.env.hosted-staging.example
+*.pem
+*.key
+*.jks
+*.keystore
+*.p12
+*.pfx
+
+# Local data, databases and backups
+data/
+output/
+*.db
+*.sqlite*
+*.dump
+*.backup
+*.bak
+
+# Build and runtime artefacts
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+*.apk
+*.aab
+android/local.properties
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.venv-tests/
+output/
+.env.local

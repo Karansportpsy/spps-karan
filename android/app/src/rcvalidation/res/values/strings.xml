@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SPPS RC Validation</string>
+    <string name="title_activity_main">SPPS RC Validation</string>
+    <string name="package_name">com.winmindperform.spps.beta15.rcvalidation</string>
+    <string name="custom_url_scheme">com.winmindperform.spps.beta15.rcvalidation</string>
+</resources>

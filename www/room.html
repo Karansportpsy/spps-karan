@@ -1,0 +1,26 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="referrer" content="no-referrer"><title>SPPS Version 1.0 - Free · Private Consultation Room</title><link rel="stylesheet" href="/assets/styles.css?v=spps-v1-live-20261114b"><script src="/assets/room.js?v=spps-v1-live-20261114b" defer></script></head><body class="room-page" data-theme="original"><header class="site-header"><div class="shell"><a class="brand" href="/"><span class="brand-mark">SPPS</span><span><span class="brand-name">Sport Psychology<br>Practitioner Suite</span><span class="brand-sub">SPPS Version 1.0 - Free</span></span></a><a href="/" class="btn small">Exit to public site</a></div></header><main class="shell room-main"><div class="eyebrow">SPPS Version 1.0 - Free · Private consultation</div><h1>Consent-gated consultation room</h1><p>This experimental room has no recording or automated facial-expression/emotion analysis. Professional observation and client self-report belong in the private clinical workflow.</p><div id="room-status" class="strip">Checking invitation…</div><section id="room-consent" class="card" hidden><h2>Video and microphone consent</h2><p>Joining shares your camera and microphone with the other participant through an encrypted WebRTC connection when supported by your browser. A STUN/TURN service may be needed, and no recording is offered.</p><label class="checkline"><input type="checkbox" id="video-optin"> I explicitly agree to this live video/audio session. I understand that no recording, emotion inference or facial analysis will occur.</label><button id="accept-consent" type="button" class="btn primary">Confirm and join</button></section><section id="room-call" class="card" hidden><div class="video-grid"><div><h3>My camera</h3><video id="local-video" autoplay muted playsinline></video></div><div><h3>Other participant</h3><video id="remote-video" autoplay playsinline></video></div></div><div class="inline-actions" style="margin-top:18px"><button id="start-camera" class="btn primary">Start camera and microphone</button><button id="hangup" class="btn">End call</button><button id="play-remote" class="btn" hidden>Play remote media</button></div><p id="room-diagnostics" class="small muted" role="status">Media connection: not started.</p>
+<section class="room-debug" aria-label="Private connection diagnostics">
+  <div class="between"><h3>Connection diagnostics</h3><button type="button" id="copy-diagnostics" class="btn small">Copy redacted diagnostics</button></div>
+  <p class="small muted">Only connection stages and aggregate media statistics are shown. Tokens, SDP, IP addresses, ICE candidates, recording and clinical details are never included. An incoming track does not prove video playback; participants must confirm intelligible audio themselves.</p>
+  <dl class="room-phase-grid">
+  <div><dt>Invitation</dt><dd id="phase-invitation">Checking</dd></div>
+  <div><dt>Consent</dt><dd id="phase-consent">Pending</dd></div>
+  <div><dt>Local camera / microphone</dt><dd id="phase-local">Not started</dd></div>
+  <div><dt>WebSocket signaling</dt><dd id="phase-signaling">Not connected</dd></div>
+  <div><dt>Other participant</dt><dd id="phase-participant">Waiting</dd></div>
+  <div><dt>Offer / answer</dt><dd id="phase-negotiation">Not started</dd></div>
+  <div><dt>STUN / TURN availability</dt><dd id="phase-transport">Not configured</dd></div>
+  <div><dt>ICE gathering</dt><dd id="phase-gathering">Not started</dd></div>
+  <div><dt>Local candidate types</dt><dd id="phase-candidates">None</dd></div>
+  <div><dt>Remote candidate types</dt><dd id="phase-remoteCandidates">None</dd></div>
+  <div><dt>ICE</dt><dd id="phase-ice">Not started</dd></div>
+  <div><dt>Selected path</dt><dd id="phase-selectedPair">None</dd></div>
+  <div><dt>Recovery</dt><dd id="phase-recovery">Not needed</dd></div>
+  <div><dt>Peer connection</dt><dd id="phase-peer">Not started</dd></div>
+  <div><dt>Remote track</dt><dd id="phase-remoteTrack">Waiting</dd></div>
+  <div><dt>Decoded video frames</dt><dd id="phase-videoFrames">None decoded</dd></div>
+  <div><dt>Inbound video</dt><dd id="phase-inboundVideo">No packets received</dd></div>
+  <div><dt>Inbound audio</dt><dd id="phase-inboundAudio">No packets received</dd></div>
+  <div><dt>Playback</dt><dd id="phase-playback">Not started</dd></div>
+  </dl>
+</section><p class="small muted">For remote connections, server-configured TURN credentials may be required. Local media permission and HTTPS are required outside localhost.</p></section><footer class="foot-note">For validation and review only — not an emergency or clinical diagnosis service.</footer></main></body></html>

@@ -1,0 +1,22 @@
+# Stage 13A: distinct, disposable PostgreSQL review project only.
+# Do not use compose.development.yml or the existing spps-canonical database.
+# Compose up is NOT run by tests or by importing Python modules.
+name: spps-identity-review
+services:
+  database:
+    image: postgres:17.11
+    ports:
+      - "127.0.0.1:55434:5432"
+    environment:
+      POSTGRES_DB: spps_dev_identity
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${SPPS_IDENTITY_REVIEW_PASSWORD:?Set a NEW fictional sandbox database password}
+    volumes:
+      - identity_review_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d spps_dev_identity"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  identity_review_data:

@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.integration)",
+      "Read(./.env.identity-review)",
+      "Read(./.env.identity-review-access)",
+      "Edit(./.env)",
+      "Edit(./.env.integration)",
+      "Edit(./.env.identity-review)",
+      "Edit(./.env.identity-review-access)",
+      "Bash(gh pr merge:*)",
+      "Bash(docker volume rm:*)",
+      "Bash(docker volume prune:*)",
+      "Bash(docker system prune:*)",
+      "mcp__claude_ai_Supabase",
+      "mcp__claude_ai_Vercel"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Read|Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_commands.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

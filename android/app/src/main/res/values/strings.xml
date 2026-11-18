@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SPPS Free 1.0</string>
+    <string name="title_activity_main">SPPS Free 1.0</string>
+    <string name="package_name">com.winmindperform.spps.beta15</string>
+    <string name="custom_url_scheme">com.winmindperform.spps.beta15</string>
+</resources>
