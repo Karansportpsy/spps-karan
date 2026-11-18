@@ -15,7 +15,7 @@ PROFILE = {"display_name": "Dr Fictional Directory", "qualifications": "MSc Spor
            "sports": "Hockey, Badminton", "athlete_levels": "club, national", "age_groups": "15-17, 18-24",
            "languages": "English, Hindi", "delivery": "both", "city": "Patiala", "taking_new_clients": True,
            "about": "Fictional profile text."}
-ALLOWED_KEYS = set(PUBLIC_FIELDS) | {"badges", "has_photo", "photo_url"}
+ALLOWED_KEYS = set(PUBLIC_FIELDS) | {"badges", "has_photo", "photo_url", "services"}  # services: phase 2 projection
 
 
 @pytest.fixture

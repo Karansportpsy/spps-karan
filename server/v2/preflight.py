@@ -53,6 +53,12 @@ MIGRATION_OBJECTS: dict[str, list[tuple[str, str]]] = {
     "0041_v2_release_hardening.sql": [("function", "v2_open_report_link")],
     # 0042 only drops enquiry objects (expand/contract), so it is checked by the function it recreates.
     "0042_v2_appointment_only_directory.sql": [("function", "v2_erase_athlete_records")],
+    "0043_v2_practitioner_services.sql": [
+        ("table", "practitioner_services"), ("table", "directory_service_snapshot"),
+        ("function", "portal_directory_booking_context"), ("function", "portal_request_directory_booking"),
+        ("function", "practitioner_booking_details"), ("function", "practitioner_approve_directory_booking"),
+        ("function", "practitioner_decline_directory_link"),
+    ],
 }
 # flag -> migrations that must have been run before the flag may be switched on
 FLAG_MIGRATIONS: dict[str, list[str]] = {}
@@ -74,6 +80,7 @@ FLAG_MIGRATIONS["SPPS_SELF_SERVE_ENABLED"] = ["0038_v2_athlete_loop.sql", "0039_
 FLAG_VARS["SPPS_DIRECTORY_ENABLED"] = {
     "SPPS_CRISIS_CONTACTS_TEXT": (r"(?s).{10,600}", "the public directory and every booking confirmation show crisis contacts"),
 }
+FLAG_MIGRATIONS["SPPS_DIRECTORY_BOOKING_ENABLED"] = ["0039_v2_directory.sql", "0043_v2_practitioner_services.sql"]
 FLAG_MIGRATIONS["SPPS_AI_FEATURES_ENABLED"] = ["0034_v2_trust_foundation.sql"]
 _MAIL = {
     "SPPS_SMTP_HOST": (r"[A-Za-z0-9.-]{3,253}", "athlete, guardian and coach e-mails are sent by SMTP"),
@@ -90,6 +97,7 @@ FLAG_ORDER: dict[str, tuple[str, ...]] = {
     "SPPS_ATHLETE_LOOP_ENABLED": ("SPPS_PORTAL_ENABLED",),
     "SPPS_DIRECTORY_ENABLED": (),
     "SPPS_SELF_SERVE_ENABLED": ("SPPS_PORTAL_ENABLED", "SPPS_ATHLETE_LOOP_ENABLED", "SPPS_DIRECTORY_ENABLED"),
+    "SPPS_DIRECTORY_BOOKING_ENABLED": ("SPPS_PORTAL_ENABLED", "SPPS_DIRECTORY_ENABLED"),
 }
 
 
@@ -114,6 +122,8 @@ def validate_env(env=None) -> None:
         raise PreflightError("SPPS_ATHLETE_LOOP_ENABLED requires SPPS_PORTAL_ENABLED=true")
     if "SPPS_SELF_SERVE_ENABLED" in on and not {"SPPS_ATHLETE_LOOP_ENABLED", "SPPS_DIRECTORY_ENABLED"} <= on:
         raise PreflightError("SPPS_SELF_SERVE_ENABLED requires the athlete loop and the directory to be on")
+    if "SPPS_DIRECTORY_BOOKING_ENABLED" in on and not {"SPPS_PORTAL_ENABLED", "SPPS_DIRECTORY_ENABLED"} <= on:
+        raise PreflightError("SPPS_DIRECTORY_BOOKING_ENABLED requires SPPS_PORTAL_ENABLED and SPPS_DIRECTORY_ENABLED")
     for flag, needed in FLAG_VARS.items():
         if flag in on:
             for name, (pattern, reason) in needed.items():

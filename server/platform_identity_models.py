@@ -203,7 +203,8 @@ class PractitionerAthleteLink(IdentityBase):
         ForeignKey("spps_identity_dev.platform_people.id"), nullable=False, index=True
     )
     practitioner_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    athlete_record_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    # 0043: NULL only while a directory-originated link waits for the practitioner; ACTIVE needs a record.
+    athlete_record_id: Mapped[int | None] = mapped_column(Integer)
     consent_event_id: Mapped[int | None] = mapped_column(
         ForeignKey("spps_identity_dev.platform_consent_events.id")
     )
@@ -217,6 +218,8 @@ class PractitionerAthleteLink(IdentityBase):
     activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    origin: Mapped[str] = mapped_column(
+        String(12), default="invitation", server_default=text("'invitation'"), nullable=False)
     __table_args__ = (
         # 13A.7: uniqueness of OPEN links is enforced by partial indexes in
         # migration 0007 so a person can re-link after revocation.
@@ -231,6 +234,8 @@ class PractitionerAthleteLink(IdentityBase):
             "AND activated_at IS NOT NULL AND revoked_at IS NULL)",
             name="ck_active_link_has_approval",
         ),
+        CheckConstraint("status != 'ACTIVE' OR athlete_record_id IS NOT NULL", name="ck_active_link_has_record"),
+        CheckConstraint("origin IN ('invitation','directory')", name="ck_practitioner_athlete_link_origin"),
     )
 
 
@@ -317,6 +322,9 @@ class PlatformBooking(IdentityBase):
     rescheduled_from_id: Mapped[int | None] = mapped_column(Integer)
     provider: Mapped[str | None] = mapped_column(String(20))
     provider_order_id: Mapped[str | None] = mapped_column(String(100), unique=True)
+    # 0043: the service chosen in the directory, snapshotted at request time (NULL for invitation-link bookings).
+    service_id: Mapped[int | None] = mapped_column(Integer)
+    service_name: Mapped[str | None] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

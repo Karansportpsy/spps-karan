@@ -25,6 +25,8 @@ def install(app, ctx) -> None:
     assessments.register(app, ctx)
     from . import reports
     reports.register(app, ctx)
+    from . import services
+    services.register(app, ctx)
     from . import flags
     if flags.athlete_loop_enabled():
         from . import athlete_loop
@@ -35,4 +37,7 @@ def install(app, ctx) -> None:
     if flags.self_serve_enabled():
         from . import self_serve
         self_serve.register(app, ctx)
+    if flags.directory_booking_enabled():
+        from . import directory_booking
+        directory_booking.register(app, ctx)
     # Later phases append their route groups here.

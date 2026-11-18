@@ -296,3 +296,17 @@ Each entry: what was unclear, what was decided, and why. Newest phase last.
   no schema table lacks it, instead of a hard-coded table count, so it passes before and after `0042`.
 - **D-1004 Kept deliberately:** programme enquiries and organisation quote requests (separate marketplace feature)
   until the owner decides otherwise.
+- **D-1005 Directory booking creates a pending 13A link without a clinical record** (phase 2, owner decision
+  2026-11-18). `practitioner_athlete_links.athlete_record_id` is NULL only while a directory link waits
+  (`PRACTITIONER_REVIEW`, `origin='directory'`); a CHECK keeps every ACTIVE link tied to a record. When the practitioner
+  approves the first booking, the server creates a minimal athlete record (display name only) under the practitioner's
+  own RLS, attaches it, activates the link and confirms the booking through the unchanged
+  `free_practitioner_decide_booking`. Declining closes the pending link. Until approval the practitioner sees display
+  name, service, time and the requester's note.
+- **D-1006 Services reach the public card through their own projection** (`directory_service_snapshot`), written by
+  the practitioner for their own active services and readable by anyone only while `directory_snapshot` lists them.
+  `directory_snapshot` stays owner-written; practitioners never get write access to badges or verification dates.
+- **D-1007 `SPPS_DIRECTORY_BOOKING_ENABLED`** (default off) gates the two request endpoints and needs
+  `SPPS_PORTAL_ENABLED` and `SPPS_DIRECTORY_ENABLED`. Service management itself is not flagged. The endpoints live under
+  `/api/portal/` because the portal session cookie is scoped to that path; they are still listed (flag-gated) in the
+  v2 default-deny allowlist.
