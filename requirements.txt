@@ -10,5 +10,5 @@ email-validator>=2,<3
 reportlab>=5.1.0,<6
 
 Pillow>=13,<14
-cryptography>=44,<51
+cryptography>=50.0.2,<51
 openpyxl>=3.1,<4
