@@ -453,3 +453,37 @@ class DirectorySnapshot(V2Base):
     badges: Mapped[str] = mapped_column(Text)  # JSON [{kind, checked_on}]
     verified_until: Mapped[str] = mapped_column(String(10))
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+# ---------------------------------------------------------------- Booking-only directory, phase 2: services
+SERVICE_MODES = ("online", "in_person")
+
+
+class PractitionerService(V2Base):
+    """A practitioner's own service (no price: payments are off). Never read by public or portal handlers."""
+    __tablename__ = "practitioner_services"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    practitioner_id: Mapped[int] = mapped_column(Integer, index=True)
+    tenant_id: Mapped[int] = mapped_column(Integer, index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    short_description: Mapped[str] = mapped_column(String(280), default="")
+    duration_minutes: Mapped[int] = mapped_column(Integer)
+    mode: Mapped[str] = mapped_column(String(10))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class DirectoryServiceSnapshot(V2Base):
+    """Public read model of ACTIVE services; shown only while the practitioner is listed in directory_snapshot."""
+    __tablename__ = "directory_service_snapshot"
+    service_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    practitioner_id: Mapped[int] = mapped_column(Integer, index=True)
+    tenant_id: Mapped[int] = mapped_column(Integer)
+    name: Mapped[str] = mapped_column(String(80))
+    short_description: Mapped[str] = mapped_column(String(280), default="")
+    duration_minutes: Mapped[int] = mapped_column(Integer)
+    mode: Mapped[str] = mapped_column(String(10))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

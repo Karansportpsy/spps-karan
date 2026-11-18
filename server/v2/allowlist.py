@@ -103,6 +103,14 @@ add("GET,HEAD", r"/api/v2/admin/directory", _dir)
 add("POST", r"/api/v2/admin/directory/\d+/(?:publish|delist)", _dir)
 add("GET,HEAD", r"/api/v2/public/directory(?:/\d+(?:/photo)?)?", _dir)
 
+# Booking-only directory, phase 2 — practitioner services (always on) and directory booking (flag)
+add("GET,HEAD", r"/api/v2/practitioner-services")
+add("POST", r"/api/v2/practitioner-services(?:/order|/\d+/(?:deactivate|activate))?")
+add("PUT", r"/api/v2/practitioner-services/\d+")
+_dbook = flags.directory_booking_enabled
+add("GET,HEAD", r"/api/portal/directory/\d+/slots", _dbook)
+add("POST", r"/api/portal/directory-bookings", _dbook)
+
 # Phase 8 — self-serve athlete and guardian accounts (SPPS_SELF_SERVE_ENABLED, which needs loop + directory)
 _self = flags.self_serve_enabled
 

@@ -24,6 +24,7 @@ from ..models import Practitioner, PractitionerProfile, now
 from . import guards
 from .context import Ctx, require_admin
 from .models import DELIVERY, VERIFICATION_KINDS, DirectoryProfile, DirectorySnapshot
+from .services import public_services
 
 PUBLIC_FIELDS = ("practitioner_id", "display_name", "qualifications", "sports", "athlete_levels", "age_groups",
                  "languages", "delivery", "city", "taking_new_clients", "about")
@@ -77,8 +78,9 @@ def _split(v: str) -> list[str]:
     return [x.strip() for x in (v or "").split(",") if x.strip()]
 
 
-def public_row(s: DirectorySnapshot) -> dict:
+def public_row(s: DirectorySnapshot, services: list[dict] | None = None) -> dict:
     out = {k: getattr(s, k) for k in PUBLIC_FIELDS}
+    out["services"] = services or []
     out.update({"sports": _split(s.sports), "athlete_levels": _split(s.athlete_levels),
                 "age_groups": _split(s.age_groups), "languages": _split(s.languages),
                 "badges": json.loads(s.badges), "has_photo": s.photo is not None,
@@ -204,11 +206,13 @@ def register(app: FastAPI, ctx: Ctx) -> None:
 
         def has(csv_, want):
             return not want or want.strip().lower() in [x.lower() for x in _split(csv_)]
-        out = [public_row(s) for s in rows
+        rows = [s for s in rows
                if has(s.sports, sport) and has(s.athlete_levels, level) and has(s.age_groups, age_group)
                and has(s.languages, language) and (not delivery or s.delivery in (delivery, "both"))
                and (not city or s.city.strip().lower() == city.strip().lower())
                and (taking_new_clients is None or s.taking_new_clients == taking_new_clients)]
+        offered = public_services(db, [s.practitioner_id for s in rows])
+        out = [public_row(s, offered.get(s.practitioner_id)) for s in rows]
         return {"results": out, "order": "alphabetical", "notice": NOT_CRISIS + " " + crisis_text()}
 
     def one(db, pid):
@@ -220,7 +224,8 @@ def register(app: FastAPI, ctx: Ctx) -> None:
     @app.get("/api/v2/public/directory/{pid}")
     def public_profile(pid: int, request: Request, db=Depends(db_session)):
         guards.limit_ip(request, "directory-search")
-        return public_row(one(db, pid))
+        s = one(db, pid)
+        return public_row(s, public_services(db, [s.practitioner_id]).get(s.practitioner_id))
 
     @app.get("/api/v2/public/directory/{pid}/photo")
     def public_photo(pid: int, request: Request, db=Depends(db_session)):

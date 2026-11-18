@@ -38,6 +38,9 @@ LIMITS = {
     "portal-auth": (20, 600),
     "invite-redeem": (20, 600),
     "export": (5, 3600),
+    "directory-booking": (20, 3600),
+    "directory-booking-account": (10, 3600),
+    "directory-slots": (60, 600),
     # Global per-IP ceilings applied by the request middleware to every public and auth endpoint (phase 2).
     "public-read": (600, 600),
     "public-write": (60, 600),

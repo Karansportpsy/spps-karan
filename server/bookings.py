@@ -8,6 +8,7 @@ then the clinical read runs under that practitioner's RLS identity, read-only.
 """
 from __future__ import annotations
 
+import secrets
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Literal
@@ -18,7 +19,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
 from .identity import bind_identity
-from .models import AppointmentSlot, Booking
+from .models import AppointmentSlot, Athlete, Booking
 from .payments import PaymentError, active_provider_name, load_providers
 from . import free_access
 from .portal_auth import sha256_hex
@@ -119,6 +120,10 @@ def register_booking_routes(app: FastAPI, *, mode: str, db_session, get_current,
             db.rollback()
         floor = datetime.now(timezone.utc).timestamp() + 2 * 3600
         return [s for s in slots if s.id not in held and s.id not in legacy and _utc(s.starts_at).timestamp() > floor]
+
+    # Phase 2 directory booking (server/v2/directory_booking.py) reuses the same slot read and identity call.
+    app.state.portal_available_slots = available_slots
+    app.state.identity_call = call
 
     def slot_view(s):
         return {"slot_id": s.id, "starts_at": iso(_utc(s.starts_at)), "duration_minutes": s.duration_minutes,
@@ -251,9 +256,25 @@ def register_booking_routes(app: FastAPI, *, mode: str, db_session, get_current,
                 for r in call("portal_notifications", p_token_hash=tok(session), p_mark_read=mark_read)]
 
     # ------------------------------------------------------------ practitioner
+    def booking_details(practitioner_id: int) -> dict:
+        """0043 details (service, link state) — only when directory booking is on, so a database without 0043
+        (and every flag-off deployment) behaves exactly as before."""
+        from .v2 import flags as v2_flags
+        if not v2_flags.directory_booking_enabled():
+            return {}
+        return {r.booking_id: r for r in call("practitioner_booking_details", p_practitioner_id=practitioner_id)}
+
+    def detail_view(d) -> dict:
+        if d is None:
+            return {"service_name": None, "first_request": False}
+        # A first request from the directory: the practitioner sees only display name, service, time and the note.
+        return {"service_name": d.service_name,
+                "first_request": d.link_origin == "directory" and d.link_status == "PRACTITIONER_REVIEW"}
+
     @app.get("/api/booking-requests")
     def practitioner_bookings(user=Depends(get_current)):
-        return [{"booking_id": r.booking_id, "slot_id": r.slot_id, "starts_at": iso(r.starts_at), "ends_at": iso(r.ends_at),
+        details = booking_details(user.id)
+        return [{**detail_view(details.get(r.booking_id)), "booking_id": r.booking_id, "slot_id": r.slot_id, "starts_at": iso(r.starts_at), "ends_at": iso(r.ends_at),
                  "amount_paise": r.amount_paise, "status": r.status, "subject_display_name": r.subject_display_name,
                  "via_guardian": r.via_guardian, "video_requested": r.video_requested, "client_note": r.client_note,
                  "action_deadline": iso(r.action_deadline), "rescheduled_from_id": r.rescheduled_from_id,
@@ -264,12 +285,42 @@ def register_booking_routes(app: FastAPI, *, mode: str, db_session, get_current,
 
     @app.post("/api/booking-requests/{booking_id}/decision")
     def practitioner_decide(booking_id: int, payload: DecisionIn, user=Depends(get_current), db=Depends(db_session)):
+        d = booking_details(user.id).get(booking_id)
+        if d is not None and free_access.enabled() and d.link_origin == "directory"                 and d.link_status == "PRACTITIONER_REVIEW":
+            return decide_first_request(booking_id, payload, d, user, db)
         status = call("free_practitioner_decide_booking" if free_access.enabled() else "practitioner_decide_booking", p_practitioner_id=user.id, p_booking_id=booking_id,
                       p_decision=payload.decision.upper(), p_reason=payload.reason,
                       p_payment_window_hours=payload.payment_window_hours)[0][0]
         event(db, user, f"platform_booking.{payload.decision}", "platform_booking", booking_id)
         db.commit()
         return {"booking_id": booking_id, "status": status}
+
+    def decide_first_request(booking_id: int, payload: DecisionIn, d, user, db):
+        """First appointment requested from the directory: approval creates the practitioner's own minimal record
+        (display name only, under the practitioner's RLS), activates the pending link and confirms the booking."""
+        if payload.decision == "decline":
+            status = call("free_practitioner_decide_booking", p_practitioner_id=user.id, p_booking_id=booking_id,
+                          p_decision="DECLINE", p_reason=payload.reason, p_payment_window_hours=24)[0][0]
+            call("practitioner_decline_directory_link", p_practitioner_id=user.id, p_booking_id=booking_id)
+            event(db, user, "platform_booking.decline", "platform_booking", booking_id)
+            db.commit()
+            return {"booking_id": booking_id, "status": status}
+        record = Athlete(tenant_id=user.tenant_id, owner_practitioner_id=user.id,
+                         code=f"DIR-{booking_id}-{secrets.token_hex(3)}"[:32],
+                         display_name=(d.subject_display_name or "Directory client")[:120], sport="Not specified",
+                         athlete_group="not specified", service_consent_recorded_at=None, active=True)
+        db.add(record)
+        db.flush()
+        try:
+            status = call("practitioner_approve_directory_booking", p_practitioner_id=user.id, p_booking_id=booking_id,
+                          p_athlete_record_id=record.id, p_reason=payload.reason)[0][0]
+        except Exception:
+            db.rollback()
+            raise
+        event(db, user, "platform_booking.approve", "platform_booking", booking_id)
+        event(db, user, "athlete.created_from_directory_booking", "athlete", record.id)
+        db.commit()
+        return {"booking_id": booking_id, "status": status, "athlete_id": record.id}
 
     @app.post("/api/booking-requests/{booking_id}/reschedule", status_code=201)
     def practitioner_reschedule(booking_id: int, payload: ProposeIn, user=Depends(get_current), db=Depends(db_session)):
