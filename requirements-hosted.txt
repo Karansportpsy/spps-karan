@@ -1,6 +1,6 @@
 # Direct dependencies pinned to the versions confirmed on the Windows v1.4.2 baseline.
 # This is not a fully hashed transitive lock; verify the dependency audit before rollout.
-fastapi==0.162.5
+fastapi==0.163.0
 uvicorn[standard]==0.54.0
 sqlalchemy==2.1.8
 pydantic==2.14.3
