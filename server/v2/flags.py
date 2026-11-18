@@ -16,6 +16,7 @@ FLAGS = {
     "SPPS_AI_FEATURES_ENABLED": ("false", "Global AI switch; per-practitioner opt-in is also required"),
     "SPPS_REPORT_LINKS_ENABLED": ("false", "Phase 5 expiring external report links"),
     "SPPS_PRACTITIONER_CLOSURE_ENABLED": ("false", "Phase 2 orderly practitioner account closure"),
+    "SPPS_DIRECTORY_BOOKING_ENABLED": ("false", "Booking-only directory: request an appointment from a directory card"),
 }
 
 
@@ -39,6 +40,11 @@ def directory_enabled() -> bool:
 def self_serve_enabled() -> bool:
     # Self-serve accounts link through the athlete loop and are found through the directory.
     return _on("SPPS_SELF_SERVE_ENABLED") and athlete_loop_enabled() and directory_enabled()
+
+
+def directory_booking_enabled() -> bool:
+    # Requests are made from a portal account (13A identity) for a practitioner found in the directory.
+    return _on("SPPS_DIRECTORY_BOOKING_ENABLED") and portal_enabled() and directory_enabled()
 
 
 def ai_globally_enabled() -> bool:

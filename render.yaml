@@ -100,6 +100,8 @@ services:
         value: "false"
       - key: SPPS_PRACTITIONER_CLOSURE_ENABLED
         value: "false"
+      - key: SPPS_DIRECTORY_BOOKING_ENABLED
+        value: "false"
       - key: SPPS_FIELD_KEYS
         sync: false
       - key: SPPS_FIELD_KEY_CURRENT

@@ -165,9 +165,11 @@ below can be undone.
 | 9 | `41_0040_v2_self_serve.sql` | as above |
 | 10 | `42_0041_v2_release_hardening.sql` | as above |
 | 11 | `43_0042_v2_appointment_only_directory.sql` | **contract step - run only AFTER the booking-only code is live.** Removes the enquiry tables/functions. Refuses to run (drops nothing) if any enquiry row exists; export or delete those rows first |
-| 12 | `v2_verify.sql` | read-only; compare with the expected values at the top (after step 11: 61 / 36 tables, 10 v2 migrations; the three safety rows stay 0) |
+| 12 | `44_0043_v2_practitioner_services.sql` | **expand step - run BEFORE deploying the phase 2 (services and directory booking) code**; the release that is live keeps working after it. Adds `practitioner_services`, `directory_service_snapshot`, three identity columns and five identity functions (created as `spps_identity_owner`). Rollback: restore the backup taken above |
+| 13 | `v2_verify.sql` | read-only; compare with the expected values at the top (after step 12: 63 / 36 tables, policies 96 / 96, 11 v2 migrations, missing v2 tables `(none)`; the three safety rows stay 0) |
 
-The new code refuses to start (and `/health/ready` stays red) until steps 2–10 have run, so run the SQL **before**
+The new code refuses to start (and `/health/ready` stays red) until steps 2–10 (and, for the phase 2 code, step 12) have
+run, so run the SQL **before**
 deploying the v2 code. The SQL only adds tables, columns, policies and functions; the v1 code keeps working on a
 database that already has them, so the order "SQL first, then code" is always safe. Never edit a file that has
 been run; later changes are new numbered files.
@@ -187,7 +189,7 @@ been run; later changes are new numbered files.
 
 Flags (all `false` until their step below): `SPPS_PORTAL_ENABLED`, `SPPS_ATHLETE_LOOP_ENABLED`,
 `SPPS_DIRECTORY_ENABLED`, `SPPS_SELF_SERVE_ENABLED`, `SPPS_REPORT_LINKS_ENABLED`, `SPPS_PRACTITIONER_CLOSURE_ENABLED`,
-`SPPS_AI_FEATURES_ENABLED`.
+`SPPS_AI_FEATURES_ENABLED`, `SPPS_DIRECTORY_BOOKING_ENABLED`.
 
 To see what the release preflight will check (names only, never values), run on your own computer with the same
 variables loaded: `python -m server.v2.preflight`. In Render, a missing or invalid value stops the start with the
@@ -213,12 +215,21 @@ was on stays in the database, invisible, until the flag is on again.
 4. `SPPS_SELF_SERVE_ENABLED=true` (needs steps 2 and 3). Test: create a fictional athlete account, send an enquiry
    from `/find`, accept it in the workspace, accept the invitation from the account in another browser, ask for and
    approve a coach link, then delete the fictional account and confirm the link shows "ended".
-5. Optional, any time: `SPPS_PRACTITIONER_CLOSURE_ENABLED=true`; `SPPS_AI_FEATURES_ENABLED=true` only after the AI
+5. `SPPS_DIRECTORY_BOOKING_ENABLED=true` (needs `SPPS_PORTAL_ENABLED`, `SPPS_DIRECTORY_ENABLED` and step 12 of the SQL,
+   `44_0043`; the preflight refuses to start otherwise). Before switching it on, each listed practitioner adds services
+   in Settings → My services and publishes open times. Test with fictional accounts: open `/find`, choose a card,
+   "Book appointment", sign in with a verified athlete account, pick a service, a time and a short note, send it; the
+   practitioner sees it under Client bookings as "First request" with display name, service, time and note only;
+   approve it and check the booking is CONFIRMED and the athlete record exists. Repeat as a guardian for a fictional
+   dependant: refused until the guardian authority (with "Request and manage bookings") is verified.
+6. Optional, any time: `SPPS_PRACTITIONER_CLOSURE_ENABLED=true`; `SPPS_AI_FEATURES_ENABLED=true` only after the AI
    wording has been reviewed (every AI output is a labelled draft and each practitioner must opt in).
 
 Rollback when a flag has been on: switching `SPPS_SELF_SERVE_ENABLED` off hides account enquiries, invitations
 lists, deletion and athlete-approved links (approved `/s/` links stop opening). Switching `SPPS_DIRECTORY_ENABLED`
-off removes `/find` and the public API at once. Switching `SPPS_ATHLETE_LOOP_ENABLED` off hides the athlete screens;
+off removes `/find` and the public API at once. Switching `SPPS_DIRECTORY_BOOKING_ENABLED` off closes the two
+directory booking endpoints at once; requests already made stay in the practitioner's Client bookings and can still
+be approved or declined there. Switching `SPPS_ATHLETE_LOOP_ENABLED` off hides the athlete screens;
 links and answers stay stored.
 
 ### Step 5 — backup and restore drill (before real athlete data, then every quarter)
