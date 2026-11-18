@@ -1,6 +1,6 @@
 -- SPPS production database: v2 verification (read-only). Run after steps 00-42, as the last step (98_verify.sql is the v1 check;
 -- its expected numbers describe a v1-only database). Every row should read as the comment beside it says.
--- Expected: tables 60 / 37 after 0042 (63 before), policies 95 / 98, force_rls_missing = 0, api_roles_with_access = 0,
+-- Expected: tables 61 / 36 after 0042 (63 / 37 before), policies 95 / 98, force_rls_missing = 0, api_roles_with_access = 0,
 -- anon_execute_on_definer = 0,
 -- v2 migrations = 9, missing v2 tables = (none).
 SELECT 'tables spps_dev' AS check, count(*)::text AS value FROM pg_tables WHERE schemaname='spps_dev'
