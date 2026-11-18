@@ -76,8 +76,11 @@ DROP FUNCTION IF EXISTS spps_dev.v2_owner_enquiry_stats();
 DROP FUNCTION IF EXISTS spps_dev.submit_public_enquiry(text, integer, integer, text, text, text, text, text, text, text, text);
 DROP TABLE IF EXISTS spps_dev.directory_enquiries;
 DROP TABLE IF EXISTS spps_dev.inquiries;
+-- Identity objects belong to spps_identity_owner (postgres may SET to it but is not the owner), as in 0009.
+SET LOCAL ROLE spps_identity_owner;
 DROP TABLE IF EXISTS spps_identity_dev.loop_requests;
+RESET ROLE;
 
 UPDATE spps_dev.services SET active = FALSE WHERE slug = 'sport-psychology-enquiry';
-INSERT INTO spps_ops.migration_history(name,sha256) VALUES ('0042_v2_appointment_only_directory.sql','9b9205d64fc1f9a581c279bee2127ce62244c89b47eace42711a83a3caabbfe5') ON CONFLICT (name) DO NOTHING;
+INSERT INTO spps_ops.migration_history(name,sha256) VALUES ('0042_v2_appointment_only_directory.sql','86145370628676647d457f7b05cea22b6adc21c1480184d69719149d2e886d2d') ON CONFLICT (name) DO NOTHING;
 COMMIT;

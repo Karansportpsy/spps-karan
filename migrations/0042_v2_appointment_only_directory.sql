@@ -73,7 +73,10 @@ DROP FUNCTION IF EXISTS spps_dev.v2_owner_enquiry_stats();
 DROP FUNCTION IF EXISTS spps_dev.submit_public_enquiry(text, integer, integer, text, text, text, text, text, text, text, text);
 DROP TABLE IF EXISTS spps_dev.directory_enquiries;
 DROP TABLE IF EXISTS spps_dev.inquiries;
+-- Identity objects belong to spps_identity_owner (postgres may SET to it but is not the owner), as in 0009.
+SET LOCAL ROLE spps_identity_owner;
 DROP TABLE IF EXISTS spps_identity_dev.loop_requests;
+RESET ROLE;
 
 UPDATE spps_dev.services SET active = FALSE WHERE slug = 'sport-psychology-enquiry';
 COMMIT;

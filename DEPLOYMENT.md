@@ -165,7 +165,7 @@ below can be undone.
 | 9 | `41_0040_v2_self_serve.sql` | as above |
 | 10 | `42_0041_v2_release_hardening.sql` | as above |
 | 11 | `43_0042_v2_appointment_only_directory.sql` | **contract step - run only AFTER the booking-only code is live.** Removes the enquiry tables/functions. Refuses to run (drops nothing) if any enquiry row exists; export or delete those rows first |
-| 12 | `v2_verify.sql` | read-only; compare with the expected values at the top (the table counts drop by 3 after step 11; the three safety rows stay 0) |
+| 12 | `v2_verify.sql` | read-only; compare with the expected values at the top (after step 11: 61 / 36 tables, 10 v2 migrations; the three safety rows stay 0) |
 
 The new code refuses to start (and `/health/ready` stays red) until steps 2–10 have run, so run the SQL **before**
 deploying the v2 code. The SQL only adds tables, columns, policies and functions; the v1 code keeps working on a
