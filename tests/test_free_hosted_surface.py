@@ -1,4 +1,4 @@
-"""Free hosted routes may expose only public profiles/inquiries, never clinical records."""
+"""Free hosted routes may expose only public profiles, never clinical records."""
 from server import development_profile as p
 
 
@@ -10,12 +10,12 @@ def test_hosted_free_public_route_gates(monkeypatch):
         ('GET','/api/public/practitioners'),
         ('GET','/api/public/practitioners/12/photo'),
         ('GET','/api/public/practitioners/12/slots'),
-        ('POST','/api/public/enquiries'),
         ('POST','/api/public/practitioner-registration'),
     ):
         assert p.allowed(method,url), (method,url)
     for method,url in (
         ('POST','/api/public/bookings'),
+        ('POST','/api/public/enquiries'),
         ('POST','/api/public/practitioner-registration/checkout'),
         ('GET','/api/public/practitioners/12/email'),
         ('GET','/api/public/athletes'),

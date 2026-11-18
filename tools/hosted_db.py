@@ -224,8 +224,8 @@ def provision(url: URL, *, identity_database: str, public_host: str) -> dict:
         raise HostedDbError("Instance is not fresh (SPPS roles, schemas or tables exist); refusing to modify it")
     from server.db import Base
     from server.platform_identity_models import IdentityBase
-    import server.models  # noqa: F401 - registers the 33 clinical tables
-    if len(Base.metadata.tables) != 33 or len(IdentityBase.metadata.tables) != identity_tables:
+    import server.models  # noqa: F401 - registers the 32 clinical tables
+    if len(Base.metadata.tables) != 32 or len(IdentityBase.metadata.tables) != identity_tables:
         raise HostedDbError("Unexpected ORM table count")
     credentials = {role: secrets.token_urlsafe(32) for role in LOGIN_ROLES}
     credentials.update({name: secrets.token_urlsafe(18) for name in FICTIONAL_PRACTITIONERS})
@@ -259,7 +259,7 @@ def provision(url: URL, *, identity_database: str, public_host: str) -> dict:
             record_ledger(conn, clinical_migrations)
             forced = conn.scalar(text("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
                                       "WHERE n.nspname='spps_dev' AND c.relkind='r' AND c.relforcerowsecurity"))
-            if forced != 33:
+            if forced != 32:
                 raise HostedDbError("Every clinical table must FORCE RLS")
     finally:
         clinical.dispose()
@@ -319,7 +319,7 @@ def verify(url: URL, *, identity_database: str) -> list[str]:
     clinical_migrations, identity_migrations, identity_tables = _migrations()
     from tools.db_drill import verify_ledger
     problems: list[str] = []
-    checks = ((url.database, "spps_dev", 33, clinical_migrations, (hp.CLINICAL_APP_ROLE, hp.CLINICAL_AUTH_ROLE)),
+    checks = ((url.database, "spps_dev", 32, clinical_migrations, (hp.CLINICAL_APP_ROLE, hp.CLINICAL_AUTH_ROLE)),
               (identity_database, "spps_identity_dev", identity_tables, identity_migrations,
                (hp.IDENTITY_AUTH_ROLE, hp.IDENTITY_PORTAL_ROLE)))
     for database, schema, tables, migrations, allowed in checks:
@@ -472,7 +472,7 @@ def main(argv=None) -> int:
             raise
         path.unlink()
         path = _write_access_file(url.host, values)
-        print("PASS: hosted staging provisioned (33 clinical + identity FORCE RLS tables, ledgers verified).")
+        print("PASS: hosted staging provisioned (32 clinical + identity FORCE RLS tables, ledgers verified).")
         print(f"Secrets written once to ignored {path.relative_to(ROOT)}; nothing printed.")
         return 0
     if args.command == "verify":

@@ -1,23 +1,17 @@
 """Phase 8: self-serve athlete and guardian accounts (flag SPPS_SELF_SERVE_ENABLED; needs the athlete loop and the
 directory switched on too).
 
-1. A practitioner accepts a directory enquiry: an athlete record is created in their caseload and the phase 6
-   invitation is sent (guardian first for under-18s).
-2. An athlete or guardian may create an account first and send an enquiry from it. The practitioner sees only the
-   enquiry itself; nothing else is shared until the practitioner accepts AND the athlete (guardian) accepts the
-   invitation and its consent screen (phase 6 rules). Pending invitations are listed in the account, so the flow
-   works without the e-mailed link, in any browser and in Chrome from the Android app.
-3. Switching practitioner: the current link is ended (the old practitioner keeps what was shared up to then) and an
-   enquiry goes to the new practitioner; a new link starts only when both sides accept.
-4. Lifecycle without anyone else's consent: deactivate (sign-in blocked, reactivation by e-mail), export, delete.
-   Deletion removes the account's identity data (account, sessions, invitations to its address, its enquiry
-   copies), ends and severs every link and withdraws every report it approved.
-5. Athlete-approved report links for coaches and clubs (also needs SPPS_REPORT_LINKS_ENABLED): the practitioner
+1. Accounts: an athlete or guardian creates an account, and sees invitations addressed to its e-mail so it can accept
+   without the e-mailed link (phase 6 rules and consent screen), in any browser and in Chrome from the Android app.
+2. Lifecycle without anyone else's consent: deactivate (sign-in blocked, reactivation by e-mail), export, delete.
+   Deletion removes the account's identity data (account, sessions, invitations to its address), ends and severs
+   every link and withdraws every report it approved.
+3. Athlete-approved report links for coaches and clubs (also needs SPPS_REPORT_LINKS_ENABLED): the practitioner
    asks; the athlete (guardian for under-18s) sees the exact signed coach-level snapshot and approves or declines;
    approval mints an expiring link, no coach account. Withdrawing, revoking, expiry or the link ending close it.
 
-Portal and public code here use only the identity-schema connections plus the same anonymous directory-enquiry
-insert the public form uses; they never read clinical tables.
+There is no enquiry step. First contact from the directory is an appointment request (booking).
+Portal code here uses only the identity-schema connections; it never reads clinical tables.
 """
 from __future__ import annotations
 
@@ -36,9 +30,9 @@ from ..security import verify_password
 from . import flags, guards
 from .athlete_loop import AcceptIn
 from .context import Ctx
-from .identity_models import (AthleteAccount, AthleteSession, LoopInvite, LoopLink, LoopRequest, LoopShareRequest,
+from .identity_models import (AthleteAccount, AthleteSession, LoopInvite, LoopLink, LoopShareRequest,
                               LoopShareView)
-from .models import AGE_GROUPS, AthleteProfile, DirectoryEnquiry, SharedReport
+from .models import SharedReport
 
 SHARE_AUDIENCES = ("coach",)
 
@@ -50,22 +44,6 @@ def share_hash(token: str) -> str:
 def _aware(v):
     from datetime import timezone
     return v.replace(tzinfo=timezone.utc) if v is not None and v.tzinfo is None else v
-
-
-class AcceptEnquiryIn(BaseModel):
-    display_name: str = Field(min_length=2, max_length=120)
-    code: str = Field(min_length=2, max_length=32)
-    age_group: str
-    invite_email: EmailStr | None = None
-    service_consent_confirmed: bool = False
-
-
-class AccountEnquiryIn(BaseModel):
-    practitioner_id: int
-    sport: str = Field(min_length=2, max_length=80)
-    message: str = Field(min_length=2, max_length=600)
-    form_token: str = Field(default="", max_length=200)
-    website: str = Field(default="", max_length=200)
 
 
 class PasswordIn(BaseModel):
@@ -91,128 +69,10 @@ class ApproveIn(BaseModel):
 
 def register(app: FastAPI, ctx: Ctx) -> None:
     from .athlete_loop import COOKIE, EXPORT_EXTRAS, base_url, send_mail, sha
-    from .directory import EnquiryIn
-    from .record import is_minor
     loop = app.state.v2_loop
     ident = loop.ident
     get_current, db_session = ctx.get_current, ctx.db_session
     portal_account = loop.portal_account
-
-    # ------------------------------------------------------------------ 1. practitioner accepts an enquiry
-    def own_enquiry(db, user, eid) -> DirectoryEnquiry:
-        e = db.scalar(select(DirectoryEnquiry).where(DirectoryEnquiry.id == eid,
-                                                     DirectoryEnquiry.practitioner_id == user.id,
-                                                     DirectoryEnquiry.tenant_id == user.tenant_id))
-        if not e:
-            raise HTTPException(404, "Enquiry not found")
-        if e.status in ("accepted", "declined"):
-            raise HTTPException(409, "This enquiry has already been " + e.status)
-        return e
-
-    def set_request(ref, status, link_id=None):
-        if not ref:
-            return
-        with ident.Auth() as a:
-            r = a.scalar(select(LoopRequest).where(LoopRequest.ref == ref))
-            if r and r.status == "sent":
-                r.status, r.decided_at = status, now()
-                if link_id:
-                    r.link_id = link_id
-                a.commit()
-
-    @app.post("/api/v2/directory/enquiries/{eid}/accept", status_code=201)
-    def accept_enquiry(eid: int, body: AcceptEnquiryIn, request: Request, user=Depends(get_current),
-                       db=Depends(db_session)):
-        e = own_enquiry(db, user, eid)
-        if not body.service_consent_confirmed:
-            raise HTTPException(422, "Confirm that you have agreed the service with the athlete (or guardian) first")
-        if body.age_group not in AGE_GROUPS:
-            raise HTTPException(422, "Choose an age group")
-        minor = is_minor(body.age_group)
-        if e.ref:
-            # Account-first enquiry: the invitation goes to the account that sent it, and its role must fit.
-            if (e.role == "parent") != minor:
-                raise HTTPException(422, "This enquiry came from a " + ("guardian" if e.role == "parent" else "athlete")
-                                    + " account; choose " + ("an under-18" if e.role == "parent" else "an adult")
-                                    + " age group")
-            email = e.contact
-        else:
-            email = str(body.invite_email or (e.contact if "@" in e.contact else "")).strip().lower()
-        if not email:
-            raise HTTPException(422, "Give the " + ("guardian's" if minor else "athlete's") + " e-mail address")
-        if db.scalar(select(Athlete.id).where(Athlete.tenant_id == user.tenant_id, Athlete.owner_practitioner_id == user.id,
-                                              Athlete.code == body.code.strip())):
-            raise HTTPException(409, "Athlete code already exists")
-        a = Athlete(tenant_id=user.tenant_id, owner_practitioner_id=user.id, code=body.code.strip(),
-                    display_name=body.display_name.strip(), sport=e.sport, service_consent_recorded_at=now())
-        db.add(a)
-        db.flush()
-        db.add(AthleteProfile(athlete_id=a.id, tenant_id=user.tenant_id, practitioner_id=user.id,
-                              age_group=body.age_group, guardian_email=email if minor else "",
-                              guardian_name=e.name if minor and e.role == "parent" else "",
-                              referral_source="SPPS directory enquiry"))
-        e.status, e.athlete_id = "accepted", a.id
-        e.responded_at = e.responded_at or now()
-        ctx.event(db, user, "enquiry.accepted", "athlete", a.id)
-        db.commit()  # the record exists even if the e-mail fails; the practitioner can re-invite from it
-        res = loop.create_invite(db, user, a, email, request)
-        set_request(e.ref, "accepted", res["link_id"])
-        return {"athlete_id": a.id, **res}
-
-    @app.post("/api/v2/directory/enquiries/{eid}/decline")
-    def decline_enquiry(eid: int, user=Depends(get_current), db=Depends(db_session)):
-        e = own_enquiry(db, user, eid)
-        e.status = "declined"
-        e.responded_at = e.responded_at or now()
-        db.commit()
-        set_request(e.ref, "declined")
-        return {"status": "declined"}
-
-    # ------------------------------------------------------------------ 2. account-first enquiries
-    def send_account_enquiry(acc, body: AccountEnquiryIn, request, db):
-        with loop.adata(acc) as d:
-            if d.scalar(select(LoopRequest.id).where(LoopRequest.account_id == acc.id, LoopRequest.status == "sent",
-                                                     LoopRequest.practitioner_id == body.practitioner_id)):
-                raise HTTPException(409, "You already have an open enquiry with this practitioner")
-        ref = secrets.token_hex(16)
-        res = app.state.v2_directory_enquiry(
-            body.practitioner_id,
-            EnquiryIn(name=acc.display_name, contact=acc.email, role="parent" if acc.role == "guardian" else "athlete",
-                      sport=body.sport, message=body.message, form_token=body.form_token, website=body.website),
-            request, db, account_id=acc.id, ref=ref)
-        with loop.adata(acc) as d:
-            r = LoopRequest(account_id=acc.id, tenant_id=res["tenant_id"], practitioner_id=body.practitioner_id,
-                            practitioner_name=res["practitioner_name"], ref=ref, sport=body.sport.strip(),
-                            message=body.message.strip(), status="sent")
-            d.add(r)
-            d.commit()
-            return {"id": r.id, "status": "sent", "message": res["message"]}
-
-    @app.post("/api/v2/portal/enquiries", status_code=201)
-    def portal_enquiry(body: AccountEnquiryIn, request: Request, acc=Depends(portal_account), db=Depends(db_session)):
-        return loop.wrap(loop.tenant_id_default(), send_account_enquiry(acc, body, request, db))
-
-    def request_json(r):
-        return {"id": r.id, "practitioner_id": r.practitioner_id, "practitioner_name": r.practitioner_name,
-                "sport": r.sport, "message": r.message, "status": r.status, "created_at": r.created_at,
-                "decided_at": r.decided_at}
-
-    @app.get("/api/v2/portal/enquiries")
-    def portal_enquiries(acc=Depends(portal_account)):
-        with loop.adata(acc) as d:
-            return loop.wrap(loop.tenant_id_default(), [request_json(r) for r in d.scalars(
-                select(LoopRequest).where(LoopRequest.account_id == acc.id).order_by(LoopRequest.id.desc()))])
-
-    @app.post("/api/v2/portal/enquiries/{rid}/withdraw")
-    def portal_withdraw_enquiry(rid: int, acc=Depends(portal_account)):
-        with loop.adata(acc) as d:
-            r = d.scalar(select(LoopRequest).where(LoopRequest.id == rid, LoopRequest.account_id == acc.id))
-            if not r:
-                raise HTTPException(404, "Not found")
-            if r.status == "sent":
-                r.status, r.decided_at = "withdrawn", now()
-                d.commit()
-            return loop.wrap(r.tenant_id, request_json(r))
 
     def open_invites(a, acc):
         out = []
@@ -244,22 +104,6 @@ def register(app: FastAPI, ctx: Ctx) -> None:
             if not inv:
                 raise HTTPException(404, "This invitation has expired or was already used")
             return loop.accept_invite(a, inv, body, acc, request)
-
-    # ------------------------------------------------------------------ 3. switch practitioner
-    @app.post("/api/v2/portal/links/{link_id}/switch", status_code=201)
-    def portal_switch(link_id: int, body: AccountEnquiryIn, request: Request, acc=Depends(portal_account),
-                      db=Depends(db_session)):
-        with loop.adata(acc) as d:
-            l_ = loop.portal_link(d, acc, link_id)
-            if l_.practitioner_id == body.practitioner_id:
-                raise HTTPException(409, "Choose a different practitioner")
-        sent = send_account_enquiry(acc, body, request, db)  # first, so a refused enquiry leaves the link open
-        with loop.adata(acc) as d:
-            l_ = loop.portal_link(d, acc, link_id)
-            l_.status, l_.ended_at = "ended", now()
-            l_.ended_by = "athlete" if l_.athlete_account_id == acc.id else "guardian"
-            d.commit()
-        return loop.wrap(loop.tenant_id_default(), {"ended_link": link_id, "enquiry": sent})
 
     # ------------------------------------------------------------------ 4. lifecycle
     def check_password(acc, password):
@@ -316,7 +160,6 @@ def register(app: FastAPI, ctx: Ctx) -> None:
                     s.status, s.decided_at = "withdrawn", now()
             a.flush()
             a.query(LoopInvite).filter(LoopInvite.email == acc.email).delete(synchronize_session=False)
-            a.query(LoopRequest).filter(LoopRequest.account_id == acc.id).delete(synchronize_session=False)
             a.query(AthleteSession).filter(AthleteSession.account_id == acc.id).delete(synchronize_session=False)
             a.query(AthleteAccount).filter(AthleteAccount.id == acc.id).delete(synchronize_session=False)
             a.commit()
@@ -326,9 +169,7 @@ def register(app: FastAPI, ctx: Ctx) -> None:
                            "Information you had already shared stays only in each practitioner's own record."}
 
     def export_requests(d, acc):
-        return {"enquiries": [request_json(r) for r in d.scalars(
-                    select(LoopRequest).where(LoopRequest.account_id == acc.id))],
-                "report_sharing": [{"title": s.title, "audience": s.audience, "status": s.status,
+        return {"report_sharing": [{"title": s.title, "audience": s.audience, "status": s.status,
                                     "decided_at": s.decided_at, "expires_at": s.expires_at}
                                    for s in d.scalars(select(LoopShareRequest).where(
                                        LoopShareRequest.decided_by_account == acc.id))]}

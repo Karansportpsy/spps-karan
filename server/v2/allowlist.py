@@ -96,14 +96,12 @@ add("POST", r"/api/v2/portal/assignments/\d+/submit", _loop)
 
 # Phase 7 — Find a Sports Psychologist (SPPS_DIRECTORY_ENABLED)
 _dir = flags.directory_enabled
-add("GET,HEAD", r"/api/v2/directory/(?:profile|enquiries)", _dir)
+add("GET,HEAD", r"/api/v2/directory/profile", _dir)
 add("PUT", r"/api/v2/directory/profile", _dir)
 add("POST", r"/api/v2/directory/profile/(?:submit|withdraw)", _dir)
-add("POST", r"/api/v2/directory/enquiries/\d+/responded", _dir)
-add("GET,HEAD", r"/api/v2/admin/directory(?:/enquiry-stats)?", _dir)
+add("GET,HEAD", r"/api/v2/admin/directory", _dir)
 add("POST", r"/api/v2/admin/directory/\d+/(?:publish|delist)", _dir)
 add("GET,HEAD", r"/api/v2/public/directory(?:/\d+(?:/photo)?)?", _dir)
-add("POST", r"/api/v2/public/directory/\d+/enquiries", _dir)
 
 # Phase 8 — self-serve athlete and guardian accounts (SPPS_SELF_SERVE_ENABLED, which needs loop + directory)
 _self = flags.self_serve_enabled
@@ -113,12 +111,8 @@ def _self_links():
     return flags.self_serve_enabled() and flags.report_links_enabled()
 
 
-add("POST", r"/api/v2/directory/enquiries/\d+/(?:accept|decline)", _self)
-add("GET,HEAD", r"/api/v2/portal/(?:enquiries|invitations)", _self)
-add("POST", r"/api/v2/portal/enquiries", _self)
-add("POST", r"/api/v2/portal/enquiries/\d+/withdraw", _self)
+add("GET,HEAD", r"/api/v2/portal/invitations", _self)
 add("POST", r"/api/v2/portal/invitations/\d+/accept", _self)
-add("POST", r"/api/v2/portal/links/\d+/switch", _self)
 add("POST", r"/api/v2/portal/account/(?:deactivate|delete)", _self)
 add("POST", r"/api/v2/portal/auth/reactivate", _self)
 add("GET,HEAD", r"/api/v2/v2-reports/\d+/share-requests", _self_links)

@@ -110,26 +110,15 @@ def test_state_changes_need_the_csrf_token_and_an_explicit_confirmation(tmp_path
     assert fresh.post("/api/account/export", json={"password": LOGIN["password"]}).status_code in (401, 403)
 
 
-def test_a_deactivated_practitioner_keeps_working_but_cannot_be_booked_or_enquired(tmp_path, monkeypatch):
+def test_a_deactivated_practitioner_keeps_working_but_cannot_be_booked(tmp_path, monkeypatch):
     app, client, csrf, me_id, _ = build(tmp_path, monkeypatch)
-    service_id = client.get("/api/public/services").json()["services"][0]["id"]
-
-    def enquire():
-        return client.post("/api/public/enquiries", json={
-            "service_id": service_id, "practitioner_id": me_id, "contact_name": "Synthetic Visitor",
-            "contact_email": "visitor@example.com", "enquiring_for": "myself", "sport": "Archery",
-            "support_topic": "Confidence", "contact_preference": "email", "consent": True, "website": ""})
-
-    assert enquire().status_code == 201, "positive control: a listed practitioner can be enquired about"
-    assert client.get(f"/api/public/practitioners/{me_id}/slots").status_code == 200
+    assert client.get(f"/api/public/practitioners/{me_id}/slots").status_code == 200, "positive control: listed"
     assert client.post("/api/account/deactivate", json={"confirm": True}, headers=csrf).status_code == 200
-    refused = enquire()
-    assert refused.status_code == 404, refused.text
     assert client.get(f"/api/public/practitioners/{me_id}/slots").status_code == 404
     assert client.get("/api/athletes").status_code == 200, "the workspace stays usable"
     assert client.get("/api/account/lifecycle").json()["deactivated"] is True
     client.post("/api/account/reactivate", json={"confirm": True}, headers=csrf)
-    assert enquire().status_code == 201
+    assert client.get(f"/api/public/practitioners/{me_id}/slots").status_code == 200
 
 
 # ---- export -------------------------------------------------------------------------------------------------------
@@ -161,7 +150,8 @@ def test_export_holds_only_this_practitioners_records_and_no_secrets(tmp_path, m
     assert document["format"] == "spps-practitioner-export-v1" and document["warnings"] == []
     assert "confidential client information" in document["notice"]
     data = document["data"]
-    assert {"profile", "athletes", "cases", "notes", "observations", "bookings", "enquiries"} <= set(data)
+    assert {"profile", "athletes", "cases", "notes", "observations", "bookings"} <= set(data)
+    assert "enquiries" not in data
     codes = {a["code"] for a in data["athletes"]}
     assert "OTHER-1" not in codes and "Fictional Other Client" not in result.text
     if mine_code:

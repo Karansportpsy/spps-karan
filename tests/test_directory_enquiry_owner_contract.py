@@ -16,7 +16,7 @@ def _block(name):
 
 
 FUNCTIONS = ("public_practitioner_directory", "public_practitioner_photo", "public_services",
-             "submit_public_enquiry", "resubmit_own_application", "update_own_practitioner_profile")
+             "resubmit_own_application", "update_own_practitioner_profile")
 
 
 def test_0029_follows_0028_in_the_release_list_and_is_step_30_of_a_gap_free_serial_set():
@@ -36,7 +36,7 @@ def test_0029_follows_0028_in_the_release_list_and_is_step_30_of_a_gap_free_seri
 def test_preflight_requires_every_public_function():
     text = (ROOT / "server/release_preflight.py").read_text(encoding="utf-8")
     for name in ("public_practitioner_directory", "public_practitioner_photo", "public_services",
-                 "submit_public_enquiry", "resubmit_own_application"):
+                 "resubmit_own_application"):
         assert f"'{name}'" in text
 
 

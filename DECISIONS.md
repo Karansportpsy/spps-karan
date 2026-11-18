@@ -285,3 +285,14 @@ Each entry: what was unclear, what was decided, and why. Newest phase last.
 - **R-8 Tokens leave the address bar at once** and live only in the tab's sessionStorage until used; every token page
   and API response is `no-store` and `noindex`. Links stay as query strings so they keep working when opened in
   another browser or in Chrome from the Android app.
+
+## Booking-only directory (supersedes D-704, D-705, D-801 to D-805 where they concern enquiries)
+- **D-1001 Enquiry is removed entirely.** There is no enquiry form, inbox, auto-reply, enquiry stats, account enquiry,
+  accept/decline-enquiry or switch-by-enquiry. Directory tiles lead to "Book appointment" (the athlete portal).
+  Invitations (practitioner invites an athlete) and report sharing are unchanged.
+- **D-1002 Expand/contract.** The code stops using the enquiry objects first; the owner then runs migration `0042`,
+  which refuses to run (drops nothing) while any enquiry row exists. Forward-only: there is no down migration.
+- **D-1003 Startup check is name-based.** `check_role` verifies that every ORM table exists and is FORCE RLS and that
+  no schema table lacks it, instead of a hard-coded table count, so it passes before and after `0042`.
+- **D-1004 Kept deliberately:** programme enquiries and organisation quote requests (separate marketplace feature)
+  until the owner decides otherwise.

@@ -11,7 +11,7 @@ def _portrait(key):
 from datetime import date, timedelta
 from server.models import now
 from sqlalchemy import select
-from server.models import Tenant,Practitioner,Service,Athlete,Case,Factor,Observation,Intervention,Inquiry,PractitionerProfile,AppointmentSlot
+from server.models import Tenant,Practitioner,Service,Athlete,Case,Factor,Observation,Intervention,PractitionerProfile,AppointmentSlot
 from server.security import make_password
 
 SERVICES=[

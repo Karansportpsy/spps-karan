@@ -168,7 +168,7 @@ def test_invalid_registration_and_webhook_signature(tmp_path,monkeypatch):
     assert wh.status_code==403
 
 
-def test_paid_practitioner_isolated_from_marketplace_enquiries_and_other_factors(tmp_path,monkeypatch):
+def test_paid_practitioner_isolated_from_other_factors(tmp_path,monkeypatch):
     monkeypatch.setenv('MODEL_C_ENV','local')
     monkeypatch.setenv('MODEL_C_PAYMENT_TEST_MODE','true')
     monkeypatch.setenv('MODEL_C_ALLOW_TEST_SUBSCRIPTION_ACTIVATION','true')
@@ -183,15 +183,6 @@ def test_paid_practitioner_isolated_from_marketplace_enquiries_and_other_factors
     assert added.status_code==201,added.text
     services=c.get('/api/public/services').json()['services']
     assert services
-    enquiry=c.post('/api/public/enquiries',json={
-        'service_id':services[0]['id'],'contact_name':'Fictional parent',
-        'contact_email':'another-parent@example.org','enquiring_for':'myself',
-        'sport':'Badminton','support_topic':'Confidence',
-        'contact_preference':'email','consent':True})
-    assert enquiry.status_code==201,enquiry.text
-    from server.models import Inquiry
-    with app.state.DB() as db:
-        eid=db.scalar(select(Inquiry).where(Inquiry.contact_email=='another-parent@example.org')).id
     registration=c.post('/api/public/practitioner-registration',json=reg('core','isolated@example.org')).json()
     assert c.post('/api/internal/test-activate-subscription',json={
         'registration_token':registration['registration_token']}).status_code==200
@@ -199,9 +190,7 @@ def test_paid_practitioner_isolated_from_marketplace_enquiries_and_other_factors
         'email':'isolated@example.org','password':'AComplexDemoPass!2026','terms_accepted':True})
     assert login.status_code==200,login.text
     own_csrf={'X-CSRF-Token':login.json()['csrf']}
-    assert c.get('/api/enquiries').json()==[]
     dashboard=c.get('/api/dashboard').json()
-    assert dashboard['stats']['new_enquiries']==0 and dashboard['enquiries']==[]
+    assert 'new_enquiries' not in dashboard['stats'] and 'enquiries' not in dashboard
     factors=c.get('/api/factors').json()
     assert 'Other clinician private test factor' not in {x['label'] for x in factors}
-    assert c.patch(f'/api/enquiries/{eid}',headers=own_csrf,json={'status':'contacted'}).status_code==404

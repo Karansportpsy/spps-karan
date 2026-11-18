@@ -78,19 +78,13 @@ def test_athlete_accepts_a_pending_invitation_and_previews_a_report_share(browse
     assert page.locator("form[data-f=delete]").count() == 1 and page.locator("form[data-f=deactivate]").count() == 1
 
 
-def test_find_page_sends_from_the_signed_in_account_and_switches(browser):
+def test_find_page_has_no_switch_or_enquiry_flow(browser):
     posts = []
     page = browser.new_page()
     _site(page, posts)
-    page.add_init_script("sessionStorage.setItem('spps.loop.csrf','csrf-2')")
     page.goto(ORIGIN + "/find?switch=11")
     page.wait_for_selector("text=Dr Fictional Listed")
     page.wait_for_timeout(300)
-    page.locator("[data-enquire]").click()
-    form = page.locator("form[data-f=account-enquiry]")
-    assert "Sending as Fictional" in form.inner_text() and form.locator("[name=contact]").count() == 0
-    form.locator("[name=sport]").fill("Hockey")
-    form.locator("[name=message]").fill("Fictional move")
-    form.locator("button").click()
-    page.wait_for_timeout(300)
-    assert posts[0][0] == "/api/v2/portal/links/11/switch" and posts[0][1]["practitioner_id"] == 5 and posts[0][2] == "csrf-2"
+    assert page.locator("[data-enquire]").count() == 0 and page.locator("form[data-f=account-enquiry]").count() == 0
+    assert page.locator("a:has-text('Book appointment')").count() == 1
+    assert posts == []

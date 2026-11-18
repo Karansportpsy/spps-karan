@@ -50,9 +50,10 @@ is generated from `migrations/XXXX_*.sql` (`python tools/v2_serial_sql.py`) and 
 | 41 | `40_0039_v2_directory.sql` | Opt-in public directory profiles, the public read model (directory_snapshot) and directory enquiries. |
 | 42 | `41_0040_v2_self_serve.sql` | Self-serve athlete and guardian accounts — account-first enquiries, accepting an enquiry into a record and an invitation, switching practitioner, account deletion, athlete-approved report links. |
 | 43 | `42_0041_v2_release_hardening.sql` | A practitioner's report links stop opening as soon as that practitioner is deactivated, closes their account, or is rejected or sent back for review by the platform owner. |
-| 44 | `v2_verify.sql` | Read-only check of the whole v1 + v2 database (run after step 41; expected values at the top). |
-| 45 | `98_verify.sql` | Read-only check of the v1 objects (run after the serial files; v1 expected values). |
-| 46 | `99_set_role_passwords.sql` | Template: set the four login-role passwords (edit a copy, never save it). |
+| 44 | `43_0042_v2_appointment_only_directory.sql` | v2 migration. |
+| 45 | `v2_verify.sql` | Read-only check of the whole v1 + v2 database (run after step 41; expected values at the top). |
+| 46 | `98_verify.sql` | Read-only check of the v1 objects (run after the serial files; v1 expected values). |
+| 47 | `99_set_role_passwords.sql` | Template: set the four login-role passwords (edit a copy, never save it). |
 
 ## Source migrations (`migrations/`)
 
@@ -100,6 +101,7 @@ is generated from `migrations/XXXX_*.sql` (`python tools/v2_serial_sql.py`) and 
 - `0039_v2_directory.sql` → `supabase/sql/40_0039_v2_directory.sql` — Opt-in public directory profiles, the public read model (directory_snapshot) and directory enquiries.
 - `0040_v2_self_serve.sql` → `supabase/sql/41_0040_v2_self_serve.sql` — Self-serve athlete and guardian accounts — account-first enquiries, accepting an enquiry into a record and an invitation, switching practitioner, account deletion, athlete-approved report links.
 - `0041_v2_release_hardening.sql` → `supabase/sql/42_0041_v2_release_hardening.sql` — A practitioner's report links stop opening as soon as that practitioner is deactivated, closes their account, or is rejected or sent back for review by the platform owner.
+- `0042_v2_appointment_only_directory.sql` → `supabase/sql/43_0042_v2_appointment_only_directory.sql` — v2 migration.
 
 After the serial files, run `v2_verify.sql` (whole database; expected values at the top), optionally
 `98_verify.sql` (v1 objects only; its counts describe a v1-only database), then

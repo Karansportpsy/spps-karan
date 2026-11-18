@@ -12,30 +12,23 @@ def _snapshot(superuser, person):
       {"p": person["id"], "t": person["tenant_id"]})
 
 
-def test_anonymous_reads_snapshot_only_and_can_add_but_never_read_enquiries(pgenv, people, superuser):
+def test_anonymous_reads_snapshot_only_and_enquiry_objects_no_longer_exist(pgenv, people, superuser):
     _snapshot(superuser, people["b"])
     with as_role(pgenv, "spps_dev_app") as anon:
         assert q(anon, "SELECT count(*) FROM directory_snapshot WHERE practitioner_id=%(p)s", {"p": people["b"]["id"]})[0][0] == 1
         assert q(anon, "SELECT count(*) FROM directory_profiles")[0][0] == 0
-        q(anon, """INSERT INTO directory_enquiries(tenant_id,practitioner_id,name,contact,role,sport,message)
-                   VALUES (%(t)s,%(p)s,'Fictional','x@example.org','athlete','Hockey','Hello')""",
-          {"t": people["b"]["tenant_id"], "p": people["b"]["id"]})
-        assert q(anon, "SELECT count(*) FROM directory_enquiries")[0][0] == 0
-        assert denied(anon, """INSERT INTO directory_enquiries(tenant_id,practitioner_id,name,contact,role,sport,message)
-                               VALUES (%(t)s,%(p)s,'F','x@example.org','athlete','H','Hi')""",
-                      {"t": people["a"]["tenant_id"], "p": people["a"]["id"]})  # A is not listed
         assert denied(anon, """INSERT INTO directory_snapshot(practitioner_id,tenant_id,display_name,qualifications,sports,
                                athlete_levels,age_groups,languages,delivery,city,taking_new_clients,about,badges,verified_until)
                                VALUES (%(p)s,%(t)s,'x','x','x','x','x','x','online','x',true,'','[]','2099-01-01')""",
                       {"p": people["a"]["id"], "t": people["a"]["tenant_id"]})
         anon.commit()
-    with as_role(pgenv, "spps_dev_app", people["b"]) as b:
-        assert q(b, "SELECT count(*) FROM directory_enquiries")[0][0] >= 1
-    with as_role(pgenv, "spps_dev_app", people["a"]) as a:
-        assert q(a, "SELECT count(*) FROM directory_enquiries WHERE practitioner_id=%(p)s", {"p": people["b"]["id"]})[0][0] == 0
-    with as_role(pgenv, "spps_dev_app", people["owner"]) as owner:
-        assert q(owner, "SELECT count(*) FROM directory_enquiries")[0][0] == 0  # rows: never
-        assert any(r[0] == people["b"]["id"] for r in q(owner, "SELECT * FROM spps_dev.v2_owner_enquiry_stats()"))
+    # Booking-only directory: the enquiry tables and functions were dropped by migration 0042.
+    gone = q(superuser, """SELECT (to_regclass('spps_dev.directory_enquiries') IS NULL)
+                               AND (to_regclass('spps_dev.inquiries') IS NULL)
+                               AND (to_regclass('spps_identity_dev.loop_requests') IS NULL)
+                               AND NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname IN
+                                   ('v2_owner_enquiry_stats','submit_public_enquiry'))""")[0][0]
+    assert gone
 
 
 def test_deactivating_or_unapproving_a_practitioner_unlists_them(pgenv, people, superuser):

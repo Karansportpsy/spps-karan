@@ -32,9 +32,8 @@ def migrate_local(engine):
                 if col not in cols:
                     connection.execute(text(f'ALTER TABLE practitioner_profiles ADD COLUMN {col} {ddl}'))
                     changes.append('practitioner_profiles.'+col)
-    # Scope historical enquiries and custom monitoring to their owner where known.
-    # Legacy unassigned enquiries remain visible only to the administrator.
-    for tbl,col,ddl in (('inquiries','practitioner_id','INTEGER'),('factors','owner_practitioner_id','INTEGER')):
+    # Scope custom monitoring to its owner where known.
+    for tbl,col,ddl in (('factors','owner_practitioner_id','INTEGER'),):
         if tbl in inspector.get_table_names():
             cols={c['name'] for c in inspector.get_columns(tbl)}
             if col not in cols:

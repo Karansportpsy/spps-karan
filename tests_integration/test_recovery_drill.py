@@ -10,7 +10,7 @@ def test_backup_restore_reproduces_data_rls_policies_and_functions(integration_e
     report = db_drill.drill()
     clinical, identity = report["databases"]["spps_dev"], report["databases"]["spps_dev_identity"]
     assert clinical["identical"] and identity["identical"]
-    assert clinical["tables"] == 33 and identity["tables"] == 22
+    assert clinical["tables"] == 32 and identity["tables"] == 22
     assert clinical["rows"] > 0 and identity["rows"] > 0
     assert identity["definer_functions"] >= 60 and identity["policies"] >= 30
 

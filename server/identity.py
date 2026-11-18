@@ -45,12 +45,20 @@ def check_role(engine, expected, require_clinical=False):
                                        "AND c.relowner=(SELECT oid FROM pg_roles WHERE rolname=current_user)"))
         memberships = connection.scalar(text("SELECT count(*) FROM pg_auth_members "
                                              "WHERE member=(SELECT oid FROM pg_roles WHERE rolname=current_user)"))
-        protected = connection.scalar(text("SELECT count(*) FROM pg_class c JOIN pg_namespace n "
-                                            "ON n.oid=c.relnamespace WHERE n.nspname='spps_dev' "
-                                            "AND c.relkind='r' AND c.relrowsecurity AND c.relforcerowsecurity"))
-        # v1 has 33 clinical tables; every v2 clinical table (server/v2/models.py) must also be FORCE RLS.
+        # Every clinical table the code knows about (v1 and v2 ORM) must exist and be FORCE RLS, and no table in the
+        # schema may lack FORCE RLS. Name-based on purpose: a table count would break during an expand/contract
+        # release where a retired table is still present until its drop migration has been run.
+        from . import models as _v1_models  # noqa: F401  (registers the v1 tables on Base)
+        from .db import Base
         from .v2.models import V2Base
-        if role[0] != expected or any(role[1:]) or owned or memberships or protected != 33 + len(V2Base.metadata.tables):
+        rows = connection.execute(text("SELECT c.relname, (c.relrowsecurity AND c.relforcerowsecurity) FROM pg_class c "
+                                       "JOIN pg_namespace n ON n.oid=c.relnamespace "
+                                       "WHERE n.nspname='spps_dev' AND c.relkind='r'")).all()
+        protected = {r[0] for r in rows if r[1]}
+        unprotected = {r[0] for r in rows if not r[1]}
+        expected_tables = set(Base.metadata.tables) | set(V2Base.metadata.tables)
+        if (role[0] != expected or any(role[1:]) or owned or memberships or unprotected
+                or not expected_tables.issubset(protected)):
             raise RuntimeError('Integration database role or RLS baseline is unsafe')
         if require_clinical:
             required = (

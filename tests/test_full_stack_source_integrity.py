@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_cumulative_source_and_webview_assets_are_preserved():
     problems, meta = inspect_stack(ROOT)
     assert problems == [], "\n".join(problems)
-    assert meta["orm_tables"] == 33
+    assert meta["orm_tables"] == 32
     assert meta["web_android_asset_pairs_matching"] == meta["asset_pair_count"]
 
 

@@ -41,14 +41,14 @@ function acceptFields(kind){return kind==='guardian'?field('Type your full name 
 function snapshotHtml(c){if(!c)return '';return `<p class="small muted">${esc(c.audience_label||'')} · ${esc(c.title||'')}</p>`+(c.sections||[]).map(s=>`<div class="strip"><b>${esc(s.label)}</b>${s.kind==='narrative'?(s.text||'').split('\n').filter(x=>x.trim()).map(x=>`<p>${esc(x)}</p>`).join(''):`<p class="small">Assessment scores: ${(s.data?.series||[]).map(x=>esc(x.label)+' ('+(x.points||[]).length+' dated)').join(', ')}</p>`}</div>`).join('')}
 async function selfServeCards(me,links){
  if(!await selfServe())return '';
- const [inv,enq]=await Promise.all([api('/api/v2/portal/invitations').then(d=>d.data),api('/api/v2/portal/enquiries').then(d=>d.data)]);
+ const inv=(await api('/api/v2/portal/invitations')).data;
  let shares=[];try{shares=(await api('/api/v2/portal/report-shares')).data}catch{}
  let html='';
  for(const i of inv)html+=card(`Invitation from ${i.practitioner_name}`,`<p>${i.kind==='guardian'?'As guardian of '+esc(i.athlete_label)+', you':'You'} can link with this practitioner. They will see:</p>${scopeHtml(i)}<form data-f="inv-accept" data-id="${i.id}" class="stack">${acceptFields(i.kind)}<label class="checkline"><input type="checkbox" name="consent" required><span class="check-copy">I agree to share the information listed above with this practitioner.</span></label><button class="btn primary" type="submit">I agree</button></form>`);
  for(const s of shares.filter(x=>x.status==='pending'))html+=card(`Share a report with ${s.recipient_label||'your coach'}?`,`<p><b>${esc(s.practitioner_name)}</b> asks to share “${esc(s.title)}” about ${esc(s.athlete_label)}. This is exactly what the coach would see:</p>${snapshotHtml(s.content)}<form data-f="share-approve" data-id="${s.id}" class="stack">${field("Coach's e-mail (optional: we send the link for you)",'<input name="recipient_email" type="email">')}<div class="inline-actions"><button class="btn primary" type="submit">Approve</button><button class="btn" type="button" data-a="share-decline" data-id="${s.id}">Decline</button></div></form>`);
  const approved=shares.filter(x=>x.status==='approved');
  if(approved.length)html+=card('Reports you have shared',approved.map(s=>`<div class="strip"><b>${esc(s.title)}</b> · ${esc(s.recipient_label||'coach')} · until ${esc(String(s.expires_at||'').slice(0,10))} <button class="btn small" data-a="share-withdraw" data-id="${s.id}">Withdraw</button></div>`).join(''));
- html+=card('Your enquiries',(enq.map(r=>`<div class="strip"><b>${esc(r.practitioner_name)}</b> · ${esc(r.sport)} · ${esc(r.status)}${r.status==='sent'?` <button class="btn small" data-a="enq-withdraw" data-id="${r.id}">Withdraw</button>`:''}</div>`).join('')||'<p class="small muted">None yet.</p>')+`<p><a class="btn small primary" href="/find">Find a sports psychologist</a></p><p class="small muted">Only your enquiry is sent. Nothing else is shared until you accept an invitation.</p>`);
+ html+=card('Find a practitioner','<p>Browse the directory, choose a practitioner and a service, and request an appointment. The practitioner approves it and a video link appears for both of you.</p><p><a class="btn small primary" href="/find">Find a sports psychologist</a></p>');
  return html;
 }
 function accountCard(on){return card('Your account',`<a class="btn small" href="/api/v2/portal/export" download>Download my data</a> <button class="btn small" data-a="logout">Sign out</button>`+(on?`<form data-f="deactivate" class="stack">${field('Password','<input name="password" type="password" required>')}<button class="btn small" type="submit">Switch my account off</button></form><form data-f="delete" class="stack">${field('Password','<input name="password" type="password" required>')}${field('Type DELETE to confirm','<input name="confirm" required>')}<p class="small muted">Deleting removes your account and sign-in details and ends every practitioner link. Download your data first.</p><button class="btn small danger" type="submit">Delete my account</button></form>`:''))}
@@ -70,7 +70,7 @@ async function homeScreen(me){
     :`<form data-f="instrument" data-id="${t.id}" class="card stack"><h3>${esc(t.title)}</h3>${t.content.items.map(i=>field(esc(i.text),`<input name="${i.id}" type="number" min="${t.content.response_min}" max="${t.content.response_max}" required>`)).join('')}<button class="btn primary" type="submit">Send answers</button></form>`).join('')+
    `<div class="inline-actions"><button class="btn small" data-a="guardian" data-id="${l.id}" data-on="${l.guardian_detail_allowed_by_you?0:1}">${l.guardian_detail_allowed_by_you?'Stop sharing answers with my guardian':'Let my guardian see my answers'}</button><button class="btn small" data-a="end" data-id="${l.id}">End link</button>${selfServeOn?`<a class="btn small" href="/find?switch=${l.id}">Switch practitioner</a>`:''}</div>`);
  }
- root.innerHTML=extra+(html||card('No practitioner yet',on?'<p>Find a practitioner and send an enquiry, or open the link from an invitation e-mail.</p>':'<p>When a practitioner invites you, open the link from the e-mail.</p>'))+accountCard(on);
+ root.innerHTML=extra+(html||card('No practitioner yet',on?'<p>Find a practitioner and request an appointment, or open the link from an invitation e-mail.</p>':'<p>When a practitioner invites you, open the link from the e-mail.</p>'))+accountCard(on);
 }
 document.addEventListener('submit',async e=>{const f=e.target.closest('form[data-f]');if(!f)return;e.preventDefault();const v=n=>f.elements[n]?.value;try{
  if(f.dataset.f==='login'){const r=await api('/api/v2/portal/auth/login',{method:'POST',body:{email:v('email'),password:v('password')}});csrf=r.csrf;sessionStorage.setItem('spps.loop.csrf',csrf);return boot()}
@@ -90,7 +90,6 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-a]')
  if(b.dataset.a==='done'){await api(`/api/v2/portal/assignments/${b.dataset.id}/submit`,{method:'POST',body:{answers:{done:true}}});return boot()}
  if(b.dataset.a==='share-decline'){await api(`/api/v2/portal/report-shares/${b.dataset.id}/decline`,{method:'POST',body:{}});return boot()}
  if(b.dataset.a==='share-withdraw'){await api(`/api/v2/portal/report-shares/${b.dataset.id}/withdraw`,{method:'POST',body:{}});notify('Link withdrawn');return boot()}
- if(b.dataset.a==='enq-withdraw'){await api(`/api/v2/portal/enquiries/${b.dataset.id}/withdraw`,{method:'POST',body:{}});return boot()}
  if(b.dataset.a==='logout'){await api('/api/v2/portal/auth/logout',{method:'POST',body:{}});sessionStorage.removeItem('spps.loop.csrf');csrf='';return boot()}
 }catch(err){notify(err.message)}});
 boot();

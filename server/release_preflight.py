@@ -36,12 +36,12 @@ def verify_production(app) -> None:
             AND p.proname IN ('register_verified_free_practitioner',
                              'claim_verified_platform_owner',
                              'public_practitioner_directory', 'public_practitioner_photo',
-                             'public_services', 'submit_public_enquiry',
+                             'public_services',
                              'resubmit_own_application')
         """)).scalars())
         if names != {"register_verified_free_practitioner", "claim_verified_platform_owner",
                      "public_practitioner_directory", "public_practitioner_photo",
-                     "public_services", "submit_public_enquiry", "resubmit_own_application"}:
+                     "public_services", "resubmit_own_application"}:
             raise RuntimeError("Production registration, directory and verified-owner migrations (through 0029) are missing")
         granted = conn.scalar(text("""
           SELECT has_column_privilege('spps_dev_app',

@@ -185,24 +185,6 @@ class LoopSettings(V2IdentityBase):
 
 
 # ---------------------------------------------------------------- Phase 8: self-serve accounts (migration 0040)
-class LoopRequest(V2IdentityBase):
-    """The account's own copy of an enquiry it sent through the directory. Only the account reads it."""
-    __tablename__ = "loop_requests"
-    __table_args__ = {"schema": SCHEMA}
-    id: Mapped[int] = mapped_column(primary_key=True)
-    account_id: Mapped[int] = mapped_column(Integer, index=True)
-    tenant_id: Mapped[int] = mapped_column(Integer)
-    practitioner_id: Mapped[int] = mapped_column(Integer)
-    practitioner_name: Mapped[str] = mapped_column(String(120))
-    ref: Mapped[str] = mapped_column(String(64), unique=True)
-    sport: Mapped[str] = mapped_column(String(80))
-    message: Mapped[str] = mapped_column(String(600))
-    status: Mapped[str] = mapped_column(String(10), default="sent")  # sent | accepted | declined | withdrawn
-    link_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-
 class LoopShareRequest(V2IdentityBase):
     """A signed coach-level report snapshot the athlete (guardian for under-18s) may approve sending to a coach."""
     __tablename__ = "loop_share_requests"

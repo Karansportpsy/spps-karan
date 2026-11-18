@@ -2,7 +2,7 @@
 import re
 import os
 
-READS = re.compile(r'^/(?:health/(?:live|ready)|api/runtime|api/auth/me|api/(?:dashboard|enquiries|athletes|factors|interventions|account/tier|bookings|slots|practitioner/(?:profile|programmes|programme-enquiries))|api/athletes/\d+(?:/(?:observations|reports|assessments/offline|indices|injury))?|api/cases/\d+)$')
+READS = re.compile(r'^/(?:health/(?:live|ready)|api/runtime|api/auth/me|api/(?:dashboard|athletes|factors|interventions|account/tier|bookings|slots|practitioner/(?:profile|programmes|programme-enquiries))|api/athletes/\d+(?:/(?:observations|reports|assessments/offline|indices|injury))?|api/cases/\d+)$')
 WRITES = re.compile(r'^/api/(?:auth/(?:login|logout)|athletes|cases|factors|observations|assessments/offline|athletes/\d+/service-consent)$')
 
 # Scoped local clinical writes: still prohibit payment, marketplace and room-token actions.
@@ -39,7 +39,7 @@ ADMIN_WRITES = re.compile(r'^/api/admin/(?:practitioners/\d+/(?:credentials|publ
 # Public free Beta API routes are allowlisted; database authorisation remains
 # separately enforced by each restricted PostgreSQL role and its RLS policies.
 FREE_PUBLIC_READS = re.compile(r'^/api/public/(?:services|practitioner-plans|supabase-auth-config|programmes|practitioners(?:/\d+(?:/(?:photo|slots))?)?)$')
-FREE_PUBLIC_WRITES = re.compile(r'^/api/public/(?:enquiries|practitioner-registration|practitioner-application/(?:status|update))$')
+FREE_PUBLIC_WRITES = re.compile(r'^/api/public/(?:practitioner-registration|practitioner-application/(?:status|update))$')
 
 # Account lifecycle (phase A). Reachable only while SPPS_ACCOUNT_LIFECYCLE_ENABLED=true.
 LIFECYCLE_READS = re.compile(r'^/api/account/lifecycle$')

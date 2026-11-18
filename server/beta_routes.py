@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, EmailStr, model_validator
 from sqlalchemy import select, delete, text
 from sqlalchemy.orm import Session
 from .models import (Practitioner, PractitionerProfile, AppointmentSlot, Booking, PaymentAllocation, ConsultationRoom,
- RoomAccess, SessionReview, Service, Inquiry, Athlete, Case, Note, Factor, Observation, Assignment, Report,
+ RoomAccess, SessionReview, Service, Athlete, Case, Note, Factor, Observation, Assignment, Report,
  AssessmentAdministration, AssessmentSubscore, InjuryEpisode, InjuryCheckIn, RetentionHold, Audit, now)
 from .security import new_token, hash_token, is_expired
 from .subscription_routes import active_membership,listing_eligible
@@ -270,7 +270,7 @@ def register_beta_routes(app,db_session,get_current,athlete_for,case_for,event,t
         return {'order_id':b.provider_order_id,'key_id':os.getenv('RAZORPAY_KEY_ID'),'amount_paise':b.amount_paise}
 
     def confirm_captured(db,b,provider_payment_id):
-        # No allocation or enquiry until the payment is verified with Razorpay.
+        # No allocation until the payment is verified with Razorpay.
         if b.status in ('paid_pending_review','approved'):
             old=db.scalar(select(PaymentAllocation).where(PaymentAllocation.booking_id==b.id))
             if old and old.provider_payment_id==provider_payment_id:return old
@@ -281,10 +281,6 @@ def register_beta_routes(app,db_session,get_current,athlete_for,case_for,event,t
         practitioner_share,platform_share=calc_split(b.amount_paise,b.commission_bps)
         record=PaymentAllocation(booking_id=b.id,provider_payment_id=provider_payment_id,gross_paise=b.amount_paise,practitioner_paise=practitioner_share,platform_paise=platform_share)
         b.provider_payment_id=provider_payment_id;b.status='paid_pending_review';db.add(record)
-        # The enquiry appears only after verified capture. Never put clinical details in payments metadata.
-        service=db.scalar(select(Service).where(Service.tenant_id==b.tenant_id).order_by(Service.id))
-        if service:
-            db.add(Inquiry(tenant_id=b.tenant_id,practitioner_id=b.practitioner_id,service_id=service.id,contact_name=b.contact_name,contact_email=b.contact_email,enquiring_for='my child / dependent' if b.is_minor else 'myself',sport='Not specified',support_topic='General enquiry',contact_preference='email',scheduling_note='Paid consultation booking – pending practitioner approval',consent_version='booking-v1',status='paid_pending_review'))
         db.flush();db.commit()
         return record
 

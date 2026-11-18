@@ -411,7 +411,7 @@ def register(app: FastAPI, ctx: Ctx) -> None:
 
     def purge_orm(db, c) -> int:
         from ..models import (AssessmentAdministration, AssessmentSubscore, Assignment, InjuryCheckIn,
-                              InjuryEpisode, Inquiry, Note, Observation, Report)
+                              InjuryEpisode, Note, Observation, Report)
         ids = [d.athlete_id for d in db.scalars(select(ClosureDisposition).where(
             ClosureDisposition.closure_id == c.id, ClosureDisposition.disposition == "export_and_erase"))]
         if ids:
@@ -431,8 +431,6 @@ def register(app: FastAPI, ctx: Ctx) -> None:
                                 (Report, Report.athlete_id.in_(ids)),
                                 (Case, Case.athlete_id.in_(ids))):
                 db.query(model).filter(cond).delete(synchronize_session=False)
-            db.query(Inquiry).filter(Inquiry.linked_athlete_id.in_(ids)).update(
-                {Inquiry.linked_athlete_id: None}, synchronize_session=False)
             db.query(Athlete).filter(Athlete.id.in_(ids)).delete(synchronize_session=False)
         c.state = "purged"
         return len(ids)
