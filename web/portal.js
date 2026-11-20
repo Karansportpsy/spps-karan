@@ -82,7 +82,9 @@
 
   // ------------------------------------------------------------------ booking from the directory (phase 2)
   // /portal?practitioner=<id> opens this flow: pick a service, then a time, then a short note, then send.
-  const BOOK_KEY = 'spps-book-practitioner';
+  // The practitioner to book stays in the address (?practitioner=N), never in browser storage (portal contract).
+  let bookPractitioner = null;
+  const clearBookPractitioner = () => { bookPractitioner = null; if (/[?&]practitioner=/.test(location.search)) history.replaceState({}, '', '/portal'); };
   function bookSubjects() {
     const out = [];
     if (has('athlete')) out.push([state.me.person_id, `${state.me.display_name} (me)`]);
@@ -377,7 +379,7 @@
 
   async function enter(me) {
     state.me = me; state.csrf = me.csrf; state.view = 'home'; state.message = ''; await load(); render();
-    let pid = null; try { pid = sessionStorage.getItem(BOOK_KEY); } catch { /* storage unavailable */ }
+    const pid = bookPractitioner;
     if (pid && /^\d+$/.test(pid)) await openBooking(pid);
   }
 
@@ -399,7 +401,7 @@
       await api(a === 'logout' ? '/api/portal/auth/logout' : '/api/portal/auth/logout-all', { method: 'POST' });
       Object.assign(state, { me: null, csrf: '', view: 'signin', data: {}, preview: null, message: 'You are signed out.' }); render(); return;
     }
-    if (a === 'book-close') { state.book = null; try { sessionStorage.removeItem(BOOK_KEY); } catch { /* ignore */ } render(); return; }
+    if (a === 'book-close') { state.book = null; clearBookPractitioner(); render(); return; }
     if (a === 'toggle-account') { state.data.showAccount = !state.data.showAccount; render(); return; }
     if (a === 'cancel-preview') { state.preview = null; render(); return; }
     if (a === 'cancel-forms') { state.data.authorityFor = null; state.data.evidenceFor = null; render(); return; }
@@ -493,7 +495,7 @@
       b.sent = await api('/api/portal/directory-bookings', { method: 'POST', body: {
         practitioner_id: pid, service_id: Number(b.service_id), slot_id: Number(f.slot_id), subject_person_id: b.subject,
         note: f.note || '', form_token: b.formToken || '', website: f.website || '' } });
-      try { sessionStorage.removeItem(BOOK_KEY); } catch { /* ignore */ }
+      clearBookPractitioner();
       await load(); render(); notify('Appointment request sent for practitioner approval.'); return;
     }
     if (kind === 'load-slots') {
@@ -541,9 +543,9 @@
     try { const runtime = await api('/api/runtime'); state.freeAccess = !!runtime.free_access; state.directoryBooking = !!runtime.v2_flags?.SPPS_DIRECTORY_BOOKING_ENABLED; } catch { /* use default until service is available */ }
     const params = new URLSearchParams(location.search);
     if (/^\d+$/.test(params.get('practitioner') || '')) {
-      try { sessionStorage.setItem(BOOK_KEY, params.get('practitioner')); } catch { /* storage unavailable */ }
+      bookPractitioner = params.get('practitioner');
       state.message = 'Sign in, or create an account and verify your email, to request an appointment with this practitioner.';
-      history.replaceState({}, '', '/portal');
+      history.replaceState({}, '', `/portal?practitioner=${bookPractitioner}`);
     }
     if (params.get('reset')) { state.view = 'reset'; state.data.resetToken = params.get('reset'); }
     if (params.get('verify')) {
