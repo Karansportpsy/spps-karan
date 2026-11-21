@@ -41,7 +41,9 @@ def add(c, h, **over):
 def test_practitioner_adds_edits_reorders_and_deactivates_own_services(app):
     c = fresh_client(app)
     h = login(c, PRACTITIONER_B)
-    assert c.get("/api/v2/practitioner-services").json() == {"services": []}
+    empty = c.get("/api/v2/practitioner-services").json()
+    # Not published yet: the panel must say why athletes cannot see the services.
+    assert empty == {"services": [], "listed": False, "profile_status": "none"}
     a = add(c, h)
     b = add(c, h, name="Return-to-play confidence", mode="in_person", duration_minutes=60)
     assert (a["active"], a["sort_order"], b["sort_order"]) == (True, 0, 1)

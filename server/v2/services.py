@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from ..models import now
 from .context import Ctx
-from .models import SERVICE_MODES, DirectoryServiceSnapshot, PractitionerService
+from .models import SERVICE_MODES, DirectoryProfile, DirectoryServiceSnapshot, DirectorySnapshot, PractitionerService
 
 MAX_SERVICES = 30
 
@@ -94,7 +94,11 @@ def register(app: FastAPI, ctx: Ctx) -> None:
 
     @app.get("/api/v2/practitioner-services")
     def list_services(user=Depends(get_current), db=Depends(db_session)):
-        return {"services": [view(s) for s in mine(db, user)]}
+        prof = db.get(DirectoryProfile, user.id)
+        # Tells the practitioner why athletes cannot see their services yet (no profile, draft, submitted, ...).
+        return {"services": [view(s) for s in mine(db, user)],
+                "listed": db.get(DirectorySnapshot, user.id) is not None,
+                "profile_status": prof.status if prof else "none"}
 
     @app.post("/api/v2/practitioner-services", status_code=201)
     def add_service(body: ServiceIn, user=Depends(get_current), db=Depends(db_session)):
