@@ -46,7 +46,7 @@ def test_serial_sql_builds_and_matches_the_expected_shape(world):
         assert one("SELECT count(*) FROM pg_tables WHERE schemaname='spps_dev'") == 63
         assert one("SELECT count(*) FROM pg_tables WHERE schemaname='spps_identity_dev'") == 42
         assert one("SELECT count(*) FROM pg_policies WHERE schemaname='spps_dev'") == 96
-        assert one("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='spps_dev'") == 26
+        assert one("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='spps_dev'") == 27
         assert one("SELECT count(*) FROM spps_ops.migration_history") == 47
         assert one("""SELECT count(*) FROM pg_constraint con JOIN pg_class c ON c.oid=con.conrelid
                       JOIN pg_namespace n ON n.oid=c.relnamespace
