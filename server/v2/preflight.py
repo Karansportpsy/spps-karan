@@ -73,6 +73,7 @@ MIGRATION_OBJECTS: dict[str, list[tuple[str, str]]] = {
                                   ("table_identity", "guest_claim_tokens"),
                                   ("function", "guest_request_create"), ("function", "guest_request_confirm"),
                                   ("function", "guest_claim_issue"), ("function", "guest_claim_account")],
+    "0048_v2_directory_publish_fix.sql": [("function", "directory_publishable")],
 }
 # flag -> migrations that must have been run before the flag may be switched on
 FLAG_MIGRATIONS: dict[str, list[str]] = {}

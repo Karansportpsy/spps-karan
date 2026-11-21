@@ -40,14 +40,14 @@ def _queue_row(w, name):
 
 def test_serial_sql_builds_and_matches_the_expected_shape(world):
     w = world
-    assert w.sql_steps == 49  # 00..48: the serial set including 0042 (booking-only), 0043 (services), 0044 (index), 0045 (appointments and video), 0046 (notifications), 0047 (guest booking)
+    assert w.sql_steps == 50  # 00..48: the serial set including 0042 (booking-only), 0043 (services), 0044 (index), 0045 (appointments and video), 0046 (notifications), 0047 (guest booking), 0048 (publish fix)
     with w.h.admin_conn() as c:
         one = lambda q: c.execute(q).fetchone()[0]
         assert one("SELECT count(*) FROM pg_tables WHERE schemaname='spps_dev'") == 63
         assert one("SELECT count(*) FROM pg_tables WHERE schemaname='spps_identity_dev'") == 42
         assert one("SELECT count(*) FROM pg_policies WHERE schemaname='spps_dev'") == 96
-        assert one("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='spps_dev'") == 26
-        assert one("SELECT count(*) FROM spps_ops.migration_history") == 46
+        assert one("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='spps_dev'") == 27
+        assert one("SELECT count(*) FROM spps_ops.migration_history") == 47
         assert one("""SELECT count(*) FROM pg_constraint con JOIN pg_class c ON c.oid=con.conrelid
                       JOIN pg_namespace n ON n.oid=c.relnamespace
                       WHERE con.contype='f' AND n.nspname IN ('spps_dev','spps_identity_dev') AND NOT EXISTS (

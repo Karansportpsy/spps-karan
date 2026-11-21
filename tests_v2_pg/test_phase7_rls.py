@@ -56,3 +56,30 @@ def test_only_the_owner_publishes_and_only_approved_active_practitioners(pgenv, 
     with as_role(pgenv, "spps_dev_app", people["owner"]) as owner:
         assert denied(owner, ins, {"p": people["a"]["id"], "t": people["a"]["tenant_id"]})  # not approved
     q(superuser, "UPDATE spps_dev.practitioner_profiles SET status='approved' WHERE practitioner_id=%(p)s", {"p": people["a"]["id"]})
+
+
+def test_owner_can_publish_an_approved_practitioner_and_only_that_one(pgenv, people, superuser):
+    """Regression (0048): the owner's publish used to die with 'permission denied for table practitioners', and the
+    policy compared the practitioner with itself, so any approved practitioner made every publish pass."""
+    ins = """INSERT INTO directory_snapshot(practitioner_id,tenant_id,display_name,qualifications,sports,athlete_levels,
+             age_groups,languages,delivery,city,taking_new_clients,about,badges,verified_until)
+             VALUES (%(p)s,%(t)s,'x','x','x','x','x','x','online','x',true,'','[]','2099-01-01')"""
+    q(superuser, "UPDATE spps_dev.practitioner_profiles SET status='approved' WHERE practitioner_id=%(p)s", {"p": people["a"]["id"]})
+    q(superuser, "UPDATE spps_dev.practitioner_profiles SET status='pending_approval' WHERE practitioner_id=%(p)s", {"p": people["b"]["id"]})
+    try:
+        _owner_publish_checks(pgenv, people, ins)
+    finally:  # the people are shared with later tests: put them back as approved
+        q(superuser, "UPDATE spps_dev.practitioner_profiles SET status='approved' WHERE practitioner_id=ANY(%(p)s)",
+          {"p": [people["a"]["id"], people["b"]["id"]]})
+
+
+def _owner_publish_checks(pgenv, people, ins):
+    with as_role(pgenv, "spps_dev_app", people["owner"]) as owner:
+        # Must succeed: a raw insert, not denied(), so a privilege error fails the test instead of passing it.
+        with owner.transaction():
+            q(owner, ins, {"p": people["a"]["id"], "t": people["a"]["tenant_id"]})
+        # Another practitioner is approved, but THIS one is not: must still be refused by the policy itself.
+        assert denied(owner, ins, {"p": people["b"]["id"], "t": people["b"]["tenant_id"]})
+    with as_role(pgenv, "spps_dev_app", people["a"]) as a:
+        assert denied(a, ins, {"p": people["a"]["id"], "t": people["a"]["tenant_id"]})  # approved, but not the owner
+        assert denied(a, "SELECT * FROM practitioners")  # the app role still has no table privilege
