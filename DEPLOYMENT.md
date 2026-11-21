@@ -224,7 +224,17 @@ was on stays in the database, invisible, until the flag is on again.
    practitioner sees it under Client bookings as "First request" with display name, service, time and note only;
    approve it and check the booking is CONFIRMED and the athlete record exists. Repeat as a guardian for a fictional
    dependant: refused until the guardian authority (with "Request and manage bookings") is verified.
-6. Optional, any time: `SPPS_PRACTITIONER_CLOSURE_ENABLED=true`; `SPPS_AI_FEATURES_ENABLED=true` only after the AI
+6. Notifications (phase 4). Run `47_0046_v2_notifications_push.sql` in Supabase first, then `v2_verify.sql`. Create keys
+   with `python tools/generate_vapid_keys.py` and set `SPPS_VAPID_PUBLIC_KEY`, `SPPS_VAPID_PRIVATE_KEY` (secret) and
+   `SPPS_VAPID_SUBJECT` (`mailto:` an address you read). Set `SPPS_NOTIFY_WORKER_ENABLED=true` (this starts the
+   delivery loop inside the web service, so queued e-mail finally sends; it needs the SMTP settings) and then
+   `SPPS_PUSH_ENABLED=true`. Test with fictional accounts in two browsers: sign in, accept the "Turn on notifications"
+   pop-up, have the athlete request a booking, and check the practitioner's browser shows "New appointment request"
+   with no names. Approve it, and check the athlete is told. A confirmed appointment starting within
+   `SPPS_REMINDER_MINUTES` (default 60) sends one reminder to each side. Android push also needs the Firebase
+   plugin and `SPPS_FCM_SERVICE_ACCOUNT_JSON` (see docs/PHASE4_REPORT.md). Switching either flag off stops delivery at
+   once; queued items wait. Rotating VAPID keys signs every browser out of push: people turn it on again.
+7. Optional, any time: `SPPS_PRACTITIONER_CLOSURE_ENABLED=true`; `SPPS_AI_FEATURES_ENABLED=true` only after the AI
    wording has been reviewed (every AI output is a labelled draft and each practitioner must opt in).
 
 Rollback when a flag has been on: switching `SPPS_SELF_SERVE_ENABLED` off hides account enquiries, invitations

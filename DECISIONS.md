@@ -310,3 +310,29 @@ Each entry: what was unclear, what was decided, and why. Newest phase last.
   `SPPS_PORTAL_ENABLED` and `SPPS_DIRECTORY_ENABLED`. Service management itself is not flagged. The endpoints live under
   `/api/portal/` because the portal session cookie is scoped to that path; they are still listed (flag-gated) in the
   v2 default-deny allowlist.
+
+## Booking-only Phase 4: notifications for every role
+
+- **D-1101 One outbox, three channels.** Every event already lands in `platform_notifications` (migration 0009). Phase 4
+  adds no second queue: the delivery pass sends mail as before and, when `SPPS_PUSH_ENABLED` is on, a content-free Web
+  Push (browsers) or FCM message (Android app) to each active device. A notification counts as delivered when any channel
+  succeeded and is retried with backoff only when every attempted channel failed.
+- **D-1102 Devices, preferences and the first-sign-in answer live in the identity database** (four owner-owned, FORCE
+  RLS tables, no application grants). Athletes and guardians are identified by their portal session; the owner, admins and
+  practitioners by their signed-in practitioner id. Handlers never take the owner from the request body. No function the
+  application calls for a person returns a stored subscription; only `notification_push_targets` does, for the worker.
+- **D-1103 Subscription endpoints are allow-listed** to the browser vendors' push services (`fcm.googleapis.com`,
+  `push.services.mozilla.com`, `push.apple.com`, `notify.windows.com`; https, port 443, no credentials). The server POSTs to
+  the endpoint, so an open field would be a server-side request forgery hole.
+- **D-1104 Messages carry no content:** a fixed title per kind, one generic line and the page to open.
+- **D-1105 Categories:** appointments, programme and task updates, account and security. The last cannot be switched off
+  (CHECK constraint and API). A preference filters push only; mail for important updates keeps going.
+- **D-1106 The pop-up follows the server's answer:** none when a device is active; "Not now" asks again after seven days;
+  none when the browser has blocked notifications (the card explains how to allow them). No browser storage is used.
+- **D-1107 The delivery loop runs inside the web service** (`SPPS_NOTIFY_WORKER_ENABLED`) because Render runs one service
+  and `tools/notify_worker.py` was never deployed, so queued mail never sent. It is safe beside the script or a second
+  instance (leased claims) and reminders are idempotent through a ledger row per appointment.
+- **D-1108 Reminder window** is `SPPS_REMINDER_MINUTES` (default 60): one reminder per confirmed appointment to each side.
+- **D-1109 Android push** uses FCM HTTP v1 from the server (`SPPS_FCM_SERVICE_ACCOUNT_JSON`). The app side (Capacitor push
+  plugin, `google-services.json`, a new APK) is a separate owner-run step.
+- **D-1110 `SPPS_SMTP_FROM` may be a plain address or `Name <address>`; `SPPS_SMTP_SENDER` is optional** and wins when set.

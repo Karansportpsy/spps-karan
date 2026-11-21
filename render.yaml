@@ -102,6 +102,17 @@ services:
         value: "false"
       - key: SPPS_DIRECTORY_BOOKING_ENABLED
         value: "false"
+      # Phase 4 notifications: run SQL 47_0046 first. Keys come from tools/generate_vapid_keys.py (owner sets them).
+      - key: SPPS_PUSH_ENABLED
+        value: "false"
+      - key: SPPS_NOTIFY_WORKER_ENABLED
+        value: "false"
+      - key: SPPS_VAPID_PUBLIC_KEY
+        sync: false
+      - key: SPPS_VAPID_PRIVATE_KEY
+        sync: false
+      - key: SPPS_VAPID_SUBJECT
+        sync: false
       - key: SPPS_FIELD_KEYS
         sync: false
       - key: SPPS_FIELD_KEY_CURRENT

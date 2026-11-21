@@ -29,6 +29,8 @@ SUBJECTS = {
     "booking.expired": "Appointment request expired",
     "booking.reschedule_proposed": "A new appointment time was proposed",
     "booking.refunded": "Refund issued",
+    "booking.reminder": "Appointment reminder",
+    "booking.reschedule_declined": "Appointment time update",
     "programme.assigned": "You have a new programme",
     "programme.feedback": "New feedback from your practitioner",
     "summary.released": "Your practitioner shared an update",
@@ -102,28 +104,47 @@ def provider_from_env(mode: str):
     if kind == "smtp":
         return SmtpDeliveryProvider(os.getenv("SPPS_SMTP_HOST", ""), int(os.getenv("SPPS_SMTP_PORT", "587")),
                                     os.getenv("SPPS_SMTP_USERNAME", ""), os.getenv("SPPS_SMTP_PASSWORD", ""),
-                                    os.getenv("SPPS_SMTP_SENDER", ""), os.getenv("SPPS_SMTP_IMPLICIT_TLS") == "true")
+                                    os.getenv("SPPS_SMTP_SENDER") or os.getenv("SPPS_SMTP_FROM", ""),
+                                    os.getenv("SPPS_SMTP_IMPLICIT_TLS") == "true")
     raise RuntimeError("Unknown notification provider")
 
 
 def deliver_pending(identity_engine, provider, practitioner_email, *, portal_url: str, workspace_url: str,
-                    limit: int = 50, lease_seconds: int = 120) -> dict:
-    """One worker pass. `practitioner_email(pid)` resolves practitioner recipients from the
-    clinical database (auth role). Returns counts by outcome."""
+                    limit: int = 50, lease_seconds: int = 120, push=None) -> dict:
+    """One worker pass. `practitioner_email(pid)` resolves practitioner recipients from the clinical database (auth
+    role). `push` is an optional server.push_delivery.PushSender: registered devices get a content-free push too.
+    A notification counts as delivered when any channel succeeded; if every attempted channel failed it is retried
+    with backoff. Returns counts by outcome."""
     with identity_engine.begin() as conn:
         claimed = conn.execute(text("SELECT * FROM spps_identity_dev.notification_claim(:l,:s)"),
                                {"l": limit, "s": lease_seconds}).fetchall()
-    outcome = {"DELIVERED": 0, "PENDING": 0, "FAILED": 0, "claimed": len(claimed)}
+    outcome = {"DELIVERED": 0, "PENDING": 0, "FAILED": 0, "claimed": len(claimed), "pushed": 0}
     for row in claimed:
         to = row.account_email or (practitioner_email(row.practitioner_id) if row.practitioner_id else None)
+        url = workspace_url if row.practitioner_id else portal_url
         delivered = False
-        if to:
-            subject, body = render(row.kind, workspace_url if row.practitioner_id else portal_url)
+        if to and provider is not None:
+            subject, body = render(row.kind, url)
             try:
                 provider.send(Message(to, subject, body))
                 delivered = True
             except Exception:  # noqa: BLE001 — any provider failure is retried with backoff
-                delivered = False
+                pass
+        if push is not None:
+            from .push_delivery import payload_for
+            with identity_engine.begin() as conn:
+                targets = conn.execute(text("SELECT * FROM spps_identity_dev.notification_push_targets(:i)"),
+                                       {"i": row.notification_id}).fetchall()
+            payload = payload_for(row.kind, url)
+            for t in targets:
+                result = push.send(t.platform, t.subscription, payload)
+                if result == "ok":
+                    delivered = True
+                    outcome["pushed"] += 1
+                elif result == "dead":
+                    with identity_engine.begin() as conn:
+                        conn.execute(text("SELECT spps_identity_dev.notification_device_dead(:d)"),
+                                     {"d": t.device_id})
         with identity_engine.begin() as conn:
             status = conn.execute(text("SELECT spps_identity_dev.notification_result(:i,:d)"),
                                   {"i": row.notification_id, "d": delivered}).scalar()

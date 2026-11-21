@@ -131,6 +131,12 @@ add("POST", r"/api/v2/portal/report-shares/\d+/(?:approve|decline|withdraw)", _s
 add("GET,HEAD", r"/api/v2/shared-reports/[A-Za-z0-9_-]{20,80}", _self_links)
 add("GET,HEAD", r"/s/[A-Za-z0-9_-]{20,80}", _self_links)
 
+# Phase 4 — notifications for every role (SPPS_PUSH_ENABLED, which needs the portal)
+_push = flags.push_enabled
+add("GET,HEAD", r"/api/(?:v2/push|portal/push)/state", _push)
+add("POST", r"/api/(?:v2/push|portal/push)/(?:subscribe|unsubscribe|preferences|prompt)", _push)
+add("GET,HEAD", r"/api/v2/push/config", _push)
+
 # Prefixes that belong to v2 only: anything under them that is not listed above is refused.
 V2_PREFIXES = ("/api/public/form-token", "/api/public/practitioner-applications/",
                "/api/public/practitioner-application/promote", "/api/public/practitioner-application/photo",

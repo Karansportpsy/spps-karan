@@ -311,6 +311,7 @@
     return `<main class="shell" style="padding:24px 16px;display:grid;gap:18px">
       <div class="between" style="flex-wrap:wrap;gap:12px"><div><span class="eyebrow">SPPS portal · ${me.roles.map(esc).join(' · ')}</span><h1 style="margin:4px 0" data-portal-user="${me.account_id}">${esc(me.display_name)}</h1><span class="muted small">${esc(me.email)}</span></div>
         <div class="inline-actions">${btn('Account', 'toggle-account', 'btn small')}${btn('Sign out', 'logout', 'btn small primary')}</div></div>
+      ${state.data.showAccount && window.SPPSPush ? SPPSPush.cardHtml() : ''}
       ${state.data.showAccount ? `<section class="card" data-section="account"><h2>Account</h2><form data-form="change-password">
         ${field('Current password', '<input name="current_password" type="password" required autocomplete="current-password">')}
         ${field('New password (at least 12 characters)', '<input name="new_password" type="password" required minlength="12" autocomplete="new-password">')}
@@ -390,6 +391,7 @@
 
   async function enter(me) {
     state.me = me; state.csrf = me.csrf; state.view = 'home'; state.message = ''; await load(); render();
+    if (window.SPPSPush) SPPSPush.start({ scope: 'portal', csrf: me.csrf });
     const pid = bookPractitioner;
     if (pid && /^\d+$/.test(pid)) await openBooking(pid);
   }
@@ -410,6 +412,7 @@
     if (a === 'view') { state.view = el.dataset.view; state.message = ''; render(); return; }
     if (a === 'logout' || a === 'logout-all') {
       await api(a === 'logout' ? '/api/portal/auth/logout' : '/api/portal/auth/logout-all', { method: 'POST' });
+      if (window.SPPSPush) SPPSPush.stop();
       Object.assign(state, { me: null, csrf: '', view: 'signin', data: {}, preview: null, message: 'You are signed out.' }); render(); return;
     }
     if (a === 'book-close') { state.book = null; clearBookPractitioner(); render(); return; }
@@ -546,7 +549,7 @@
     try { await onSubmit(form, submitter); } catch (err) { handleError(err); buttons.forEach(b => { b.disabled = false; }); }
   });
   function handleError(err) {
-    if (err.status === 401 && state.me) { Object.assign(state, { me: null, csrf: '', view: 'signin', data: {}, message: 'Your session ended. Please sign in again.' }); render(); return; }
+    if (err.status === 401 && state.me) { if (window.SPPSPush) SPPSPush.stop(); Object.assign(state, { me: null, csrf: '', view: 'signin', data: {}, message: 'Your session ended. Please sign in again.' }); render(); return; }
     notify(err.message || 'Something went wrong');
   }
 
