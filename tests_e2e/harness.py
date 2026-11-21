@@ -92,6 +92,9 @@ def prod_env(monkeypatch):
         "MODEL_C_INIT_DB": "false", "MODEL_C_SEED_DEMO": "false", "MODEL_C_PUBLIC_TENANT": "winmindperform",
         "SPPS_CLINICAL_DATABASE_NAME": p.database, "SPPS_IDENTITY_DATABASE_NAME": p.database,
         "SPPS_TRUSTED_PROXY_HOPS": "0",
+        # Required in hosted mode since the v2 phases. Throwaway test values only: never real secrets or keys.
+        "SPPS_FORM_TOKEN_SECRET": "e2e-throwaway-form-token-secret-0123456789",
+        "SPPS_FIELD_KEYS": "e2e:" + base64.b64encode(b"\x01" * 32).decode(), "SPPS_FIELD_KEY_CURRENT": "e2e",
         "DATABASE_URL": dsn("spps_dev_app"), "SPPS_AUTH_DATABASE_URL": dsn("spps_dev_auth"),
         "SPPS_IDENTITY_AUTH_DATABASE_URL": dsn("spps_identity_auth"),
         "SPPS_IDENTITY_PORTAL_DATABASE_URL": dsn("spps_identity_portal"),

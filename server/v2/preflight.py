@@ -59,6 +59,7 @@ MIGRATION_OBJECTS: dict[str, list[tuple[str, str]]] = {
         ("function", "practitioner_booking_details"), ("function", "practitioner_approve_directory_booking"),
         ("function", "practitioner_decline_directory_link"),
     ],
+    "0044_v2_service_snapshot_fk_index.sql": [("table", "directory_service_snapshot")],  # index only
 }
 # flag -> migrations that must have been run before the flag may be switched on
 FLAG_MIGRATIONS: dict[str, list[str]] = {}
@@ -136,11 +137,14 @@ def missing_objects(conn, migrations) -> list[str]:
     for migration in migrations:
         for kind, name in MIGRATION_OBJECTS.get(migration, []):
             if kind in ("table", "table_identity"):
-                full = ("spps_dev." if kind == "table" else "spps_identity_dev.") + name
-                ok = conn.scalar(text("SELECT to_regclass(:n) IS NOT NULL"), {"n": full})
-                if ok:
-                    ok = conn.scalar(text("""SELECT relforcerowsecurity FROM pg_class
-                                             WHERE oid = to_regclass(:n)"""), {"n": full})
+                schema = "spps_dev" if kind == "table" else "spps_identity_dev"
+                # Catalog lookup instead of to_regclass(): to_regclass needs USAGE on the schema, and the clinical
+                # connection (rightly) has none on the identity schema. pg_class is readable by every role, so the
+                # check works on any connection with no grant. It still requires the table and FORCE RLS.
+                ok = conn.scalar(text("""SELECT c.relforcerowsecurity FROM pg_class c
+                                         JOIN pg_namespace n ON n.oid = c.relnamespace
+                                         WHERE n.nspname = :s AND c.relname = :t AND c.relkind IN ('r', 'p')"""),
+                                 {"s": schema, "t": name})
             elif kind == "column":
                 table, column = name.split(".", 1)
                 ok = conn.scalar(text("""SELECT EXISTS (SELECT 1 FROM information_schema.columns

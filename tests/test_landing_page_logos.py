@@ -46,4 +46,9 @@ def test_staged_copies_match_the_source():
     for name in ("app.js", "styles.css"):
         source = (ROOT / "web" / name).read_bytes()
         assert (ROOT / "www" / "assets" / name).read_bytes() == source
-        assert (ROOT / "android/app/src/main/assets/public/assets" / name).read_bytes() == source
+        # The Android copy is generated build output (android/.gitignore ignores it), so a fresh checkout such as
+        # CI does not have it. It is compared when present; the Web parity job runs `npm run android:sync` first
+        # and then tests_android checks the native copy.
+        native = ROOT / "android/app/src/main/assets/public/assets" / name
+        if native.exists():
+            assert native.read_bytes() == source, f"{native} is not regenerated from web/"

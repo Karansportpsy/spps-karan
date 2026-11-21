@@ -1,7 +1,7 @@
--- SPPS production database: v2 verification (read-only). Run after steps 00-44, as the last step (98_verify.sql is the v1 check;
+-- SPPS production database: v2 verification (read-only). Run after steps 00-45, as the last step (98_verify.sql is the v1 check;
 -- its expected numbers describe a v1-only database). Every row should read as the comment beside it says.
--- Expected after 0043 (44_0043): tables spps_dev 63 / spps_identity_dev 36, policies 96 / 96, force_rls_missing = 0,
--- api_roles_with_access = 0, anon_execute_on_definer = 0, v2 migrations = 11, missing v2 tables = (none).
+-- Expected after 0044 (45_0044; 0044 only adds an index, so the table and policy counts equal those after 0043): tables spps_dev 63 / spps_identity_dev 36, policies 96 / 96, force_rls_missing = 0,
+-- api_roles_with_access = 0, anon_execute_on_definer = 0, v2 migrations = 12, missing v2 tables = (none).
 -- After 0042 but before 0043: tables 61 / 36, policies 91 / 96, v2 migrations = 10, and the two 0043 tables are listed as
 -- missing (measured on a fresh serial build).
 SELECT 'tables spps_dev' AS check, count(*)::text AS value FROM pg_tables WHERE schemaname='spps_dev'
