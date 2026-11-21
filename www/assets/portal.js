@@ -62,7 +62,7 @@
         <button class="btn primary" type="submit">Create account</button></form>`,
       verify: `<form data-form="verify">${field('Code from the link in your email (only if the link did not open)', '<input name="token" required minlength="20" maxlength="200" autocomplete="one-time-code">')}
         <button class="btn primary" type="submit">Verify email</button></form>
-        <form data-form="resend" style="margin-top:14px">${field('Email (to resend)', '<input name="email" type="email" required maxlength="250">')}<button class="btn small" type="submit">Resend code</button></form>`,
+        <form data-form="resend" style="margin-top:14px">${field('Email (to send the link again)', '<input name="email" type="email" required maxlength="250">')}<button class="btn small" type="submit">Resend link</button></form>`,
       forgot: `<form data-form="forgot">${field('Email', '<input name="email" type="email" required maxlength="250">')}<button class="btn primary" type="submit">Send reset link</button></form>`,
       reset: `<form data-form="reset"><input type="hidden" name="token" value="${esc(state.data.resetToken || '')}">
         ${field('Reset code', `<input name="token_visible" value="${esc(state.data.resetToken || '')}" required minlength="20" maxlength="200">`)}
