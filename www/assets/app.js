@@ -524,7 +524,7 @@ function appointmentTab(b){
 const appointmentAction=(id,op,label,cls='btn small')=>button(label,'client-booking-action',cls,`data-id="${id}" data-op="${op}"`);
 function appointmentVideo(b){
  const now=Date.now();
- return b.status==='CONFIRMED'&&b.video_requested&&!b.video_closed&&now>=Date.parse(b.starts_at)-10*60000&&now<=Date.parse(b.ends_at)+15*60000
+ return b.status==='CONFIRMED'&&b.video_requested&&!b.video_closed&&now>=Date.parse(b.starts_at)-15*60000&&now<=Date.parse(b.ends_at)+15*60000
   ?appointmentAction(b.booking_id,'video','Join video','btn small primary')+appointmentAction(b.booking_id,'end-video','End video'):'';
 }
 function clientBookingRows(rows,slots){

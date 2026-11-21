@@ -336,3 +336,28 @@ Each entry: what was unclear, what was decided, and why. Newest phase last.
 - **D-1109 Android push** uses FCM HTTP v1 from the server (`SPPS_FCM_SERVICE_ACCOUNT_JSON`). The app side (Capacitor push
   plugin, `google-services.json`, a new APK) is a separate owner-run step.
 - **D-1110 `SPPS_SMTP_FROM` may be a plain address or `Name <address>`; `SPPS_SMTP_SENDER` is optional** and wins when set.
+
+## Guest booking: ask for an appointment without an account
+
+- **D-1201 The request comes first, the account second.** A visitor gives a name, an e-mail address, a service and a
+  time. Nothing is booked and no account exists until the address is proven by a one-time link. The press of a button on
+  that page (not the page load) confirms it, so mail scanners that open links cannot confirm on someone's behalf.
+- **D-1202 Confirmation creates an account shell,** VERIFIED (the mailbox was proven), with a random password hash nobody
+  can match, the adult attestation from the form, the ATHLETE role, the consents the form showed (terms, privacy, case
+  link, appointment booking, and video for an online service) and the usual PENDING_APPROVAL booking. From there the
+  practitioner's workflow is exactly the signed-in one.
+- **D-1203 The approval e-mail carries the create-account link.** The delivery worker issues a single-use 14-day claim
+  token only for a shell account that has not been claimed; the message contains no names, times or details.
+  Choosing a password sets `claimed_at`; the person then signs in and finds the appointment, the link and the video room.
+  "Forgot password" also works for the address, so a lost link is never a dead end.
+- **D-1204 Neutral answers.** The request answers the same whether the address is new, already has a claimed account
+  (it then receives a "sign in instead" notice) or has too many open requests, so the form cannot be used to find out who
+  has an account. Limits: 10 requests per hour per IP, 3 per hour and 3 open per address.
+- **D-1205 Adults only.** The form attests 18+. A minor is booked by a verified guardian from an account, as before.
+- **D-1206 Unconfirmed requests are purged** a week after they expire (name and address are not kept for strangers).
+- **D-1207 Video opens 15 minutes before the start** (migration 0047 replaces the 0045 function; `SPPS_REMINDER_MINUTES`
+  now defaults to 15, so the reminder and the button agree). The practitioner may enter first; a guest who arrives first
+  waits in the room (the existing signalling already allows either order). The room shows who is waiting for whom.
+- **D-1208 Flag `SPPS_GUEST_BOOKING_ENABLED`** (default off) needs the portal, the directory, directory booking and the
+  notification worker. Public routes: `GET /api/v2/public/directory/{id}/slots`, `POST /api/v2/public/guest-bookings`,
+  `POST /api/v2/public/guest-bookings/confirm`, `POST /api/v2/public/guest-claim`.

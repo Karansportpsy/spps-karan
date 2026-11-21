@@ -17,6 +17,7 @@ FLAGS = {
     "SPPS_REPORT_LINKS_ENABLED": ("false", "Phase 5 expiring external report links"),
     "SPPS_PRACTITIONER_CLOSURE_ENABLED": ("false", "Phase 2 orderly practitioner account closure"),
     "SPPS_DIRECTORY_BOOKING_ENABLED": ("false", "Booking-only directory: request an appointment from a directory card"),
+    "SPPS_GUEST_BOOKING_ENABLED": ("false", "Guest booking: request an appointment from the directory without an account"),
     "SPPS_PUSH_ENABLED": ("false", "Phase 4 push notifications (Web Push, Android FCM) for every role"),
     "SPPS_NOTIFY_WORKER_ENABLED": ("false", "Phase 4 in-process delivery loop: queued e-mail, push and session reminders"),
 }
@@ -47,6 +48,11 @@ def self_serve_enabled() -> bool:
 def directory_booking_enabled() -> bool:
     # Requests are made from a portal account (13A identity) for a practitioner found in the directory.
     return _on("SPPS_DIRECTORY_BOOKING_ENABLED") and portal_enabled() and directory_enabled()
+
+
+def guest_booking_enabled() -> bool:
+    # Guests book through the same booking path and public directory as signed-in people.
+    return _on("SPPS_GUEST_BOOKING_ENABLED") and directory_booking_enabled()
 
 
 def push_enabled() -> bool:

@@ -22,7 +22,7 @@ from .ice_config import IceConfigError, ice_config
 from .portal_auth import sha256_hex
 
 ERRORS = {"28000": (401, "Session expired"), "P0002": (404, "Not found"),
-          "P0004": (409, "Join video is available from 10 minutes before a confirmed online appointment until 15 minutes after its end"),
+          "P0004": (409, "Join video is available from 15 minutes before a confirmed online appointment until 15 minutes after its end"),
           "P0005": (409, "This video consultation has ended"),
           "22023": (422, "Invalid details")}
 

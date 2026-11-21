@@ -111,6 +111,12 @@ _dbook = flags.directory_booking_enabled
 add("GET,HEAD", r"/api/portal/directory/\d+/slots", _dbook)
 add("POST", r"/api/portal/directory-bookings", _dbook)
 
+# Guest booking (SPPS_GUEST_BOOKING_ENABLED, which needs directory booking)
+_guest = flags.guest_booking_enabled
+add("GET,HEAD", r"/api/v2/public/directory/\d+/slots", _guest)
+add("POST", r"/api/v2/public/guest-bookings(?:/confirm)?", _guest)
+add("POST", r"/api/v2/public/guest-claim", _guest)
+
 # Phase 8 — self-serve athlete and guardian accounts (SPPS_SELF_SERVE_ENABLED, which needs loop + directory)
 _self = flags.self_serve_enabled
 

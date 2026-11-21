@@ -18,8 +18,9 @@ from sqlalchemy import select, text
 log = logging.getLogger("spps.notify")
 
 
-def run_once(app, *, push, reminder_minutes: int = 60) -> dict:
+def run_once(app, *, push, reminder_minutes: int = 15) -> dict:
     from .notifications import deliver_pending, provider_from_env
+    from .v2 import flags
     engine = app.state.portal_auth_engine
     base = os.getenv("SPPS_PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/")
     with engine.begin() as conn:
@@ -41,14 +42,18 @@ def run_once(app, *, push, reminder_minutes: int = 60) -> dict:
             return db.scalar(select(Practitioner.email).where(Practitioner.id == pid))
 
     result = deliver_pending(engine, provider, practitioner_email, portal_url=base + "/portal",
-                             workspace_url=base + "/studio", push=push)
+                             workspace_url=base + "/studio", push=push,
+                             guest_claims=flags.guest_booking_enabled())
+    if flags.guest_booking_enabled():
+        with engine.begin() as conn:
+            conn.execute(text("SELECT spps_identity_dev.guest_requests_purge()"))
     result["reminders_queued"] = queued
     return result
 
 
 def start(app, *, push_on: bool) -> threading.Thread | None:
     interval = max(10, int(os.getenv("SPPS_NOTIFY_INTERVAL_SECONDS", "30")))
-    reminder_minutes = int(os.getenv("SPPS_REMINDER_MINUTES", "60"))
+    reminder_minutes = int(os.getenv("SPPS_REMINDER_MINUTES", "15"))
     push = None
     if push_on:
         from .push_delivery import PushSender

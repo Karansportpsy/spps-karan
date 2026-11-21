@@ -55,9 +55,10 @@ is generated from `migrations/XXXX_*.sql` (`python tools/v2_serial_sql.py`) and 
 | 46 | `45_0044_v2_service_snapshot_fk_index.sql` | v2 migration. |
 | 47 | `46_0045_v2_appointments_video.sql` | v2 migration. |
 | 48 | `47_0046_v2_notifications_push.sql` | v2 migration. |
-| 49 | `v2_verify.sql` | Read-only check of the whole v1 + v2 database (run after step 41; expected values at the top). |
-| 50 | `98_verify.sql` | Read-only check of the v1 objects (run after the serial files; v1 expected values). |
-| 51 | `99_set_role_passwords.sql` | Template: set the four login-role passwords (edit a copy, never save it). |
+| 49 | `48_0047_v2_guest_booking.sql` | v2 migration. |
+| 50 | `v2_verify.sql` | Read-only check of the whole v1 + v2 database (run after step 41; expected values at the top). |
+| 51 | `98_verify.sql` | Read-only check of the v1 objects (run after the serial files; v1 expected values). |
+| 52 | `99_set_role_passwords.sql` | Template: set the four login-role passwords (edit a copy, never save it). |
 
 ## Source migrations (`migrations/`)
 
@@ -110,6 +111,7 @@ is generated from `migrations/XXXX_*.sql` (`python tools/v2_serial_sql.py`) and 
 - `0044_v2_service_snapshot_fk_index.sql` → `supabase/sql/45_0044_v2_service_snapshot_fk_index.sql` — v2 migration.
 - `0045_v2_appointments_video.sql` → `supabase/sql/46_0045_v2_appointments_video.sql` — v2 migration.
 - `0046_v2_notifications_push.sql` → `supabase/sql/47_0046_v2_notifications_push.sql` — v2 migration.
+- `0047_v2_guest_booking.sql` → `supabase/sql/48_0047_v2_guest_booking.sql` — v2 migration.
 
 After the serial files, run `v2_verify.sql` (whole database; expected values at the top), optionally
 `98_verify.sql` (v1 objects only; its counts describe a v1-only database), then

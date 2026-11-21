@@ -86,5 +86,5 @@ def test_find_page_has_no_switch_or_enquiry_flow(browser):
     page.wait_for_selector("text=Dr Fictional Listed")
     page.wait_for_timeout(300)
     assert page.locator("[data-enquire]").count() == 0 and page.locator("form[data-f=account-enquiry]").count() == 0
-    assert page.locator("a:has-text('Book appointment')").count() == 1
+    assert page.locator("button[data-act=book]").count() == 1 and page.locator("a:has-text('Sign in to book')").count() == 1
     assert posts == []

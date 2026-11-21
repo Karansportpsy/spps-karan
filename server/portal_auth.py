@@ -98,6 +98,10 @@ class ProviderOutbox:
         "password-reset": ("Reset your SPPS password",
                            "Use this link to choose a new password:\n{link}\n\nIt expires in 30 minutes and signs "
                            "out all devices. If you did not ask for this, ignore this message — your password is unchanged."),
+        "guest-confirm": ("Confirm your appointment request",
+                          "You asked for an appointment through SPPS. Open this link and press the confirm button to "
+                          "send your request to the practitioner:\n{link}\n\nThe link expires in 24 hours. If you "
+                          "did not ask for an appointment, ignore this message and nothing will be sent."),
         "existing-account-notice": ("SPPS sign-in help",
                                     "Someone tried to create an SPPS account with this email address, which already has "
                                     "an account. If this was you, sign in or reset your password at:\n{link}"),
@@ -110,8 +114,9 @@ class ProviderOutbox:
         from urllib.parse import quote
         from .notifications import Message
         subject, body = self.TEMPLATES[kind]
-        param = {"verify-email": "verify", "password-reset": "reset"}.get(kind)
-        link = f"{self.base}/portal" + (f"?{param}={quote(token, safe='')}" if param and token else "")
+        param = {"verify-email": "verify", "password-reset": "reset", "guest-confirm": "confirm"}.get(kind)
+        page = "/find" if kind == "guest-confirm" else "/portal"
+        link = f"{self.base}{page}" + (f"?{param}={quote(token, safe='')}" if param and token else "")
         self.provider.send(Message(to, subject, body.format(link=link)))
 
 

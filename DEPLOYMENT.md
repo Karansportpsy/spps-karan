@@ -231,10 +231,20 @@ was on stays in the database, invisible, until the flag is on again.
    `SPPS_PUSH_ENABLED=true`. Test with fictional accounts in two browsers: sign in, accept the "Turn on notifications"
    pop-up, have the athlete request a booking, and check the practitioner's browser shows "New appointment request"
    with no names. Approve it, and check the athlete is told. A confirmed appointment starting within
-   `SPPS_REMINDER_MINUTES` (default 60) sends one reminder to each side. Android push also needs the Firebase
+   `SPPS_REMINDER_MINUTES` (default 15) sends one reminder to each side. Android push also needs the Firebase
    plugin and `SPPS_FCM_SERVICE_ACCOUNT_JSON` (see docs/PHASE4_REPORT.md). Switching either flag off stops delivery at
    once; queued items wait. Rotating VAPID keys signs every browser out of push: people turn it on again.
-7. Optional, any time: `SPPS_PRACTITIONER_CLOSURE_ENABLED=true`; `SPPS_AI_FEATURES_ENABLED=true` only after the AI
+7. Guest booking. Run `48_0047_v2_guest_booking.sql` in Supabase, then `v2_verify.sql` (expect 42 identity tables, 120
+   identity policies, 15 v2 migrations). Needs steps 5 and 6 and a verified sending domain: guests are strangers, so
+   mail must reach any address (in Resend, verify your domain and set `SPPS_SMTP_FROM` to an address on it). Set
+   `SPPS_GUEST_BOOKING_ENABLED=true` (the preflight refuses without the directory booking flag and the worker). Test
+   with a fictional guest address you can read, in a private window: `/find` > Book appointment > service > time >
+   details > "Request submitted, check your mail"; open the e-mail, press Confirm; the practitioner sees the request,
+   approves it; the guest e-mail has "create your account"; set a password, sign in, and the appointment, link and
+   (for online services) Join video are there. Join video opens 15 minutes before the start; the practitioner may enter
+   first and the guest waits in the room. Switching the flag off removes the guest routes at once; people who already
+   confirmed keep working accounts.
+8. Optional, any time: `SPPS_PRACTITIONER_CLOSURE_ENABLED=true`; `SPPS_AI_FEATURES_ENABLED=true` only after the AI
    wording has been reviewed (every AI output is a labelled draft and each practitioner must opt in).
 
 Rollback when a flag has been on: switching `SPPS_SELF_SERVE_ENABLED` off hides account enquiries, invitations
@@ -328,7 +338,7 @@ its note and guardian details stay hidden. Accepted proposals for an unapproved 
 approval; approving that request creates the minimal athlete record and activates the existing pending link.
 Decline reasons are optional fixed phrases. No appointment decision or reschedule is allowed after its start.
 
-Video opens only for CONFIRMED online appointments from start minus 10 minutes through end plus 15 minutes
+Video opens only for CONFIRMED online appointments from start minus 15 minutes through end plus 15 minutes (since migration 0047)
 (inclusive). Both ticket issuance and every ticket check use the database window. Existing consent, guardian
 booking authority, active-link and final-room-closure checks still apply. A third account cannot issue a ticket.
 The consent screen and `room.html` use the existing two-peer signalling design; there is no recording.
