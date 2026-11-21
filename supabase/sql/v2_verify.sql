@@ -1,7 +1,7 @@
 -- SPPS production database: v2 verification (read-only). Run after steps 00-48, as the last step (98_verify.sql is the v1 check;
 -- its expected numbers describe a v1-only database). Every row should read as the comment beside it says.
 -- Expected after 0047 (48_0047; guest booking adds two identity tables): tables spps_dev 63 / spps_identity_dev 42, policies 96 / 120, force_rls_missing = 0,
--- api_roles_with_access = 0, anon_execute_on_definer = 0, v2 migrations = 15, missing v2 tables = (none).
+-- api_roles_with_access = 0, anon_execute_on_definer = 0, v2 migrations = 15 (16 after 0048, 49_0048_v2_directory_publish_fix), missing v2 tables = (none).
 -- After 0046 but before 0047 (47_0046; four identity tables for notifications): tables spps_dev 63 / spps_identity_dev 40, policies 96 / 112, force_rls_missing = 0,
 -- api_roles_with_access = 0, anon_execute_on_definer = 0, v2 migrations = 14, missing v2 tables = (none).
 -- After 0045 but before 0046: tables 63 / 36, policies 96 / 96, v2 migrations = 13.

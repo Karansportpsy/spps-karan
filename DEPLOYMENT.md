@@ -244,7 +244,10 @@ was on stays in the database, invisible, until the flag is on again.
    (for online services) Join video are there. Join video opens 15 minutes before the start; the practitioner may enter
    first and the guest waits in the room. Switching the flag off removes the guest routes at once; people who already
    confirmed keep working accounts.
-8. Optional, any time: `SPPS_PRACTITIONER_CLOSURE_ENABLED=true`; `SPPS_AI_FEATURES_ENABLED=true` only after the AI
+8. Owner publishing fix. Run `49_0048_v2_directory_publish_fix.sql` in Supabase BEFORE deploying the code that lists it
+   (the startup check requires the new function), then `v2_verify.sql` (expect 16 v2 migrations). Publishing in Admin >
+   Directory failed with "permission denied for table practitioners" until this was run.
+9. Optional, any time: `SPPS_PRACTITIONER_CLOSURE_ENABLED=true`; `SPPS_AI_FEATURES_ENABLED=true` only after the AI
    wording has been reviewed (every AI output is a labelled draft and each practitioner must opt in).
 
 Rollback when a flag has been on: switching `SPPS_SELF_SERVE_ENABLED` off hides account enquiries, invitations
