@@ -60,7 +60,7 @@
         <label class="checkline"><input type="checkbox" name="adult_attested" required> I confirm I am 18 or over. Athletes under 18 are added by a verified parent or guardian.</label>
         <label class="checkline"><input type="checkbox" name="terms_accepted" required> I accept the <a href="/terms" target="_blank" rel="noopener">terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</label>
         <button class="btn primary" type="submit">Create account</button></form>`,
-      verify: `<form data-form="verify">${field('Verification code from your email', '<input name="token" required minlength="20" maxlength="200" autocomplete="one-time-code">')}
+      verify: `<form data-form="verify">${field('Code from the link in your email (only if the link did not open)', '<input name="token" required minlength="20" maxlength="200" autocomplete="one-time-code">')}
         <button class="btn primary" type="submit">Verify email</button></form>
         <form data-form="resend" style="margin-top:14px">${field('Email (to resend)', '<input name="email" type="email" required maxlength="250">')}<button class="btn small" type="submit">Resend code</button></form>`,
       forgot: `<form data-form="forgot">${field('Email', '<input name="email" type="email" required maxlength="250">')}<button class="btn primary" type="submit">Send reset link</button></form>`,
@@ -452,7 +452,7 @@
     if (kind === 'signin') { await enter(await api('/api/portal/auth/login', { method: 'POST', body: { email: f.email, password: f.password } })); return; }
     if (kind === 'register') {
       const r = await api('/api/portal/auth/register', { method: 'POST', body: { email: f.email, password: f.password, display_name: f.display_name, role: f.role, adult_attested: !!f.adult_attested, terms_accepted: !!f.terms_accepted } });
-      state.view = 'verify'; state.message = r.message + ' Enter the verification code to finish.'; render(); return;
+      state.view = 'verify'; state.message = r.message + ' Open the confirmation link in that e-mail to finish. If the link does not open, paste the code at the end of it (after verify=) below.'; render(); return;
     }
     if (kind === 'verify') { await api('/api/portal/auth/verify-email', { method: 'POST', body: { token: f.token.trim() } }); state.view = 'signin'; state.message = 'Email verified. You can now sign in.'; render(); return; }
     if (kind === 'resend') { const r = await api('/api/portal/auth/resend-verification', { method: 'POST', body: { email: f.email } }); state.message = r.message; render(); return; }
