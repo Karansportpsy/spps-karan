@@ -9,8 +9,10 @@ Selection: SPPS_NOTIFY_PROVIDER=file|smtp (file refused outside local mode).
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import secrets
 import smtplib
 import ssl
 import threading
@@ -109,8 +111,22 @@ def provider_from_env(mode: str):
     raise RuntimeError("Unknown notification provider")
 
 
+CLAIM_TTL_SECONDS = 14 * 24 * 3600
+
+
+def render_claim(portal_url: str, token: str) -> tuple[str, str]:
+    """The approval message for a person who booked as a guest: it carries the one-time create-account link."""
+    from urllib.parse import quote
+    subject = "Your appointment is confirmed - create your account"
+    body = (f"Your appointment is confirmed.\n\nCreate your SPPS account to see the details, the video link and any "
+            f"reminders:\n{portal_url}?claim={quote(token, safe='')}\n\nThe link works once and expires in 14 days. "
+            "For your privacy this message contains no other details. If you did not expect it, you can ignore it. "
+            "SPPS is not an emergency service.")
+    return subject, body
+
+
 def deliver_pending(identity_engine, provider, practitioner_email, *, portal_url: str, workspace_url: str,
-                    limit: int = 50, lease_seconds: int = 120, push=None) -> dict:
+                    limit: int = 50, lease_seconds: int = 120, push=None, guest_claims: bool = False) -> dict:
     """One worker pass. `practitioner_email(pid)` resolves practitioner recipients from the clinical database (auth
     role). `push` is an optional server.push_delivery.PushSender: registered devices get a content-free push too.
     A notification counts as delivered when any channel succeeded; if every attempted channel failed it is retried
@@ -125,6 +141,19 @@ def deliver_pending(identity_engine, provider, practitioner_email, *, portal_url
         delivered = False
         if to and provider is not None:
             subject, body = render(row.kind, url)
+            if guest_claims and row.kind == "booking.confirmed" and not row.practitioner_id:
+                # A guest has no account yet: the approval e-mail carries the one-time create-account link.
+                claim = secrets.token_urlsafe(32)
+                try:
+                    with identity_engine.begin() as conn:
+                        issued = conn.execute(text("SELECT spps_identity_dev.guest_claim_issue(:n,:h,:t)"),
+                                              {"n": row.notification_id,
+                                               "h": hashlib.sha256(claim.encode("utf-8")).hexdigest(),
+                                               "t": CLAIM_TTL_SECONDS}).scalar()
+                except Exception:  # noqa: BLE001 — the ordinary message still goes out
+                    issued = False
+                if issued:
+                    subject, body = render_claim(url, claim)
             try:
                 provider.send(Message(to, subject, body))
                 delivered = True

@@ -68,6 +68,9 @@
         ${field('Reset code', `<input name="token_visible" value="${esc(state.data.resetToken || '')}" required minlength="20" maxlength="200">`)}
         ${field('New password (at least 12 characters)', '<input name="new_password" type="password" required minlength="12" maxlength="200" autocomplete="new-password">')}
         <button class="btn primary" type="submit">Set new password</button></form>`,
+      claim: `<form data-form="claim"><h2 style="margin-top:0">Create your account</h2><p class="small">Your appointment request was approved. Choose a password to finish creating your account. You will then see the appointment, the video link and your reminders here.</p><input type="hidden" name="token" value="${esc(state.data.claimToken || '')}">
+        ${field('Password (at least 12 characters)', '<input name="new_password" type="password" required minlength="12" maxlength="200" autocomplete="new-password">')}
+        <button class="btn primary" type="submit">Create my account</button></form>`,
     };
     return `<main class="shell" style="max-width:560px;padding:32px 16px">
       <span class="eyebrow">SPPS · Athlete &amp; guardian portal</span>
@@ -217,7 +220,7 @@
   function portalVideo(b) {
     const now = Date.now();
     return b.can_manage && b.status === 'CONFIRMED' && b.video_requested && !b.video_closed
-      && now >= Date.parse(b.starts_at) - 10 * 60000 && now <= Date.parse(b.ends_at) + 15 * 60000
+      && now >= Date.parse(b.starts_at) - 15 * 60000 && now <= Date.parse(b.ends_at) + 15 * 60000
       ? btn('Join video', 'join-video', 'btn small primary', `data-id="${b.booking_id}"`) : '';
   }
   setInterval(() => {
@@ -472,6 +475,7 @@
     if (kind === 'resend') { const r = await api('/api/portal/auth/resend-verification', { method: 'POST', body: { email: f.email } }); state.message = r.message; render(); return; }
     if (kind === 'forgot') { const r = await api('/api/portal/auth/password-reset/request', { method: 'POST', body: { email: f.email } }); state.view = 'reset'; state.message = r.message; render(); return; }
     if (kind === 'reset') { await api('/api/portal/auth/password-reset/confirm', { method: 'POST', body: { token: (f.token_visible || f.token).trim(), new_password: f.new_password } }); state.view = 'signin'; state.message = 'Password updated. Sign in with your new password.'; render(); return; }
+    if (kind === 'claim') { await api('/api/v2/public/guest-claim', { method: 'POST', body: { token: f.token, password: f.new_password } }); state.view = 'signin'; state.data.claimToken = ''; state.message = 'Your account is ready. Sign in with the e-mail address you booked with and the password you just chose.'; render(); return; }
     if (kind === 'change-password') { await api('/api/portal/auth/password/change', { method: 'POST', body: f }); form.reset(); notify('Password changed. Other devices were signed out.'); return; }
     if (kind === 'preview') {
       const r = await api('/api/portal/links/preview', { method: 'POST', body: { code: f.code } });
@@ -561,6 +565,7 @@
       state.message = 'Sign in, or create an account and verify your email, to request an appointment with this practitioner.';
       history.replaceState({}, '', `/portal?practitioner=${bookPractitioner}`);
     }
+    if (params.get('claim')) { state.view = 'claim'; state.data.claimToken = params.get('claim'); history.replaceState({}, '', '/portal'); }
     if (params.get('reset')) { state.view = 'reset'; state.data.resetToken = params.get('reset'); }
     if (params.get('verify')) {
       try { await api('/api/portal/auth/verify-email', { method: 'POST', body: { token: params.get('verify') } }); state.message = 'Email verified. You can now sign in.'; }

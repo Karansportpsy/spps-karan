@@ -44,7 +44,7 @@ def open_frozen(browser, rows, path="/studio", role="athlete", width=1280):
         return site.answer(r)
 
     page.route("**/*", route)
-    now = START - timedelta(minutes=11)
+    now = START - timedelta(minutes=16)
     page.clock.install(time=now)
     page.clock.pause_at(now + timedelta(seconds=1))
     page.goto(ORIGIN + path)
@@ -63,9 +63,9 @@ def test_video_join_appears_and_disappears_without_server_data_changes(browser, 
         page.get_by_role("tab", name="Approved").click()
     join = page.get_by_role("button", name="Join video", exact=True)
     expect(join).to_have_count(0)
-    page.clock.run_for(60_000)  # start - 10 min + 1 sec
+    page.clock.run_for(60_000)  # start - 15 min + 1 sec
     expect(join).to_be_visible()
-    page.clock.fast_forward(75 * 60_000)  # end + 15 min + 1 sec
+    page.clock.fast_forward(80 * 60_000)  # end + 15 min + 1 sec
     expect(join).to_have_count(0)
     assert not errors, errors
     page.context.close()

@@ -150,8 +150,10 @@ async function makeOffer(options={}){
 async function receive(message){
  if(message.type==='ready'){
   phase('signaling','Connected');phase('participant','Waiting for peer');
+  say(role==='practitioner'?'You are in the room. Your client can join now; the call starts when they do.':'You are in the waiting room. Your practitioner will let the call start when they join. Please keep this page open.');
  }else if(message.type==='peer-ready'){
   phase('participant','Both connected');
+  say(role==='practitioner'?'Your client has joined. Connecting the call.':'Your practitioner has joined. Connecting the call.');
   phase('negotiation','Negotiating media');
   if(role==='practitioner')await makeOffer();
  }else if(message.type==='peer-left'){

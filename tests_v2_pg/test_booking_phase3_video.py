@@ -118,7 +118,7 @@ def test_video_ticket_server_window_and_eligibility(booking_app, superuser, tena
     _, p, a, bid = requested(booking_app, superuser, tenant_id, service=service)
     if case != "pending":
         assert p.post(f"/api/booking-requests/{bid}/decision", json={"decision": "approve"}).status_code == 200
-    start = {"before": "11 minutes", "after": "-66 minutes"}.get(case, "9 minutes")
+    start = {"before": "16 minutes", "after": "-66 minutes"}.get(case, "9 minutes")
     q(id_superuser, "UPDATE spps_identity_dev.platform_bookings SET starts_at=now()+%s::interval,ends_at=now()+%s::interval+interval '50 minutes' WHERE id=%s",
       (start, start, bid))
     expected = 200 if case == "inside" else 409
@@ -162,7 +162,7 @@ def test_video_exact_boundaries_and_ticket_revalidation(booking_app, superuser, 
     assert p.post(f"/api/booking-requests/{bid}/decision", json={"decision": "approve"}).status_code == 200
     # One PostgreSQL transaction fixes now() for exact boundary assertions.
     with psycopg.connect(dsn(pgenv["SPPS_V2_PG_IDENTITY_ADMIN_URL"])) as c:
-        for start, end, expected in [("10 minutes", "60 minutes", True), ("10 minutes 1 second", "60 minutes", False),
+        for start, end, expected in [("15 minutes", "60 minutes", True), ("15 minutes 1 second", "60 minutes", False),
                                       ("-65 minutes", "-15 minutes", True), ("-65 minutes", "-15 minutes -1 second", False)]:
             q(c, "UPDATE spps_identity_dev.platform_bookings SET starts_at=now()+%s::interval,ends_at=now()+%s::interval WHERE id=%s", (start, end, bid))
             assert q(c, "SELECT spps_identity_dev.video_booking_open(b) FROM spps_identity_dev.platform_bookings b WHERE id=%s", (bid,))[0][0] is expected
@@ -192,6 +192,14 @@ def test_phase3_serial_installs_as_non_superuser_and_keeps_grants(id_superuser):
         q(id_superuser, "REVOKE ALL ON SCHEMA spps_ops FROM spps_phase3_test_installer")
         q(id_superuser, "REVOKE ALL ON spps_ops.migration_history FROM spps_phase3_test_installer")
         q(id_superuser, "DROP ROLE spps_phase3_test_installer")
+        # Re-running the serial file also re-created the 0045 (10 minute) join window; put the current one back.
+        import re
+        sql = (ROOT / "migrations/0047_v2_guest_booking.sql").read_text(encoding="utf-8")
+        fn = re.search(r"CREATE OR REPLACE FUNCTION spps_identity_dev\.video_booking_open.*?\$body\$;", sql, re.S).group(0)
+        q(id_superuser, "SET LOCAL ROLE spps_identity_owner")
+        q(id_superuser, fn)
+        q(id_superuser, "RESET ROLE")
+        id_superuser.commit()
     rows = q(id_superuser, """SELECT pg_get_userbyid(proowner),prosecdef,
            has_function_privilege('spps_identity_auth',oid,'EXECUTE'),
            has_function_privilege('spps_identity_portal',oid,'EXECUTE')

@@ -40,6 +40,9 @@ def install(app, ctx) -> None:
     if flags.directory_booking_enabled():
         from . import directory_booking
         directory_booking.register(app, ctx)
+    if flags.guest_booking_enabled():
+        from . import guest_booking
+        guest_booking.register(app, ctx)
     if flags.push_enabled():
         from . import push
         push.register(app, ctx)

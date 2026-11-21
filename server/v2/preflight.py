@@ -69,6 +69,10 @@ MIGRATION_OBJECTS: dict[str, list[tuple[str, str]]] = {
                                        ("function", "notification_enqueue_due_reminders"),
                                        ("function", "portal_push_register"),
                                        ("function", "practitioner_push_register")],
+    "0047_v2_guest_booking.sql": [("table_identity", "guest_booking_requests"),
+                                  ("table_identity", "guest_claim_tokens"),
+                                  ("function", "guest_request_create"), ("function", "guest_request_confirm"),
+                                  ("function", "guest_claim_issue"), ("function", "guest_claim_account")],
 }
 # flag -> migrations that must have been run before the flag may be switched on
 FLAG_MIGRATIONS: dict[str, list[str]] = {}
@@ -109,15 +113,19 @@ FLAG_VARS["SPPS_PUSH_ENABLED"] = {
     "SPPS_VAPID_SUBJECT": (r"(?:mailto:[^@\s]+@[^@\s]+\.[^@\s]+|https://[A-Za-z0-9.-]+(?:/\S*)?)",
                            "a generic contact for the push services: mailto:address or https://site"),
 }
+FLAG_MIGRATIONS["SPPS_GUEST_BOOKING_ENABLED"] = ["0043_v2_practitioner_services.sql", "0047_v2_guest_booking.sql"]
 FLAG_VARS["SPPS_ATHLETE_LOOP_ENABLED"] = dict(_MAIL)
 FLAG_VARS["SPPS_SELF_SERVE_ENABLED"] = dict(_MAIL)
 FLAG_VARS["SPPS_NOTIFY_WORKER_ENABLED"] = dict(_MAIL)
+FLAG_VARS["SPPS_GUEST_BOOKING_ENABLED"] = dict(_MAIL)
 # Turn-on order recorded in DEPLOYMENT.md: each flag lists the flags that must already be on.
 FLAG_ORDER: dict[str, tuple[str, ...]] = {
     "SPPS_ATHLETE_LOOP_ENABLED": ("SPPS_PORTAL_ENABLED",),
     "SPPS_DIRECTORY_ENABLED": (),
     "SPPS_SELF_SERVE_ENABLED": ("SPPS_PORTAL_ENABLED", "SPPS_ATHLETE_LOOP_ENABLED", "SPPS_DIRECTORY_ENABLED"),
     "SPPS_DIRECTORY_BOOKING_ENABLED": ("SPPS_PORTAL_ENABLED", "SPPS_DIRECTORY_ENABLED"),
+    "SPPS_GUEST_BOOKING_ENABLED": ("SPPS_PORTAL_ENABLED", "SPPS_DIRECTORY_ENABLED", "SPPS_DIRECTORY_BOOKING_ENABLED",
+                                   "SPPS_NOTIFY_WORKER_ENABLED"),
     "SPPS_PUSH_ENABLED": ("SPPS_PORTAL_ENABLED",),
     "SPPS_NOTIFY_WORKER_ENABLED": ("SPPS_PORTAL_ENABLED",),
 }
@@ -146,6 +154,10 @@ def validate_env(env=None) -> None:
         raise PreflightError("SPPS_SELF_SERVE_ENABLED requires the athlete loop and the directory to be on")
     if "SPPS_DIRECTORY_BOOKING_ENABLED" in on and not {"SPPS_PORTAL_ENABLED", "SPPS_DIRECTORY_ENABLED"} <= on:
         raise PreflightError("SPPS_DIRECTORY_BOOKING_ENABLED requires SPPS_PORTAL_ENABLED and SPPS_DIRECTORY_ENABLED")
+    if "SPPS_GUEST_BOOKING_ENABLED" in on and not {"SPPS_DIRECTORY_BOOKING_ENABLED", "SPPS_NOTIFY_WORKER_ENABLED"} <= on:
+        raise PreflightError("SPPS_GUEST_BOOKING_ENABLED requires SPPS_DIRECTORY_BOOKING_ENABLED and "
+                             "SPPS_NOTIFY_WORKER_ENABLED (the approval e-mail with the create-account link is sent "
+                             "by the delivery worker)")
     for flag in ("SPPS_PUSH_ENABLED", "SPPS_NOTIFY_WORKER_ENABLED"):
         if flag in on and "SPPS_PORTAL_ENABLED" not in on:
             raise PreflightError(f"{flag} requires SPPS_PORTAL_ENABLED=true")
