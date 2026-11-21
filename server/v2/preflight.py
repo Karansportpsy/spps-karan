@@ -61,6 +61,14 @@ MIGRATION_OBJECTS: dict[str, list[tuple[str, str]]] = {
     ],
     "0044_v2_service_snapshot_fk_index.sql": [("table", "directory_service_snapshot")],  # index only
     "0045_v2_appointments_video.sql": [("function", "portal_booking_details")],
+    "0046_v2_notifications_push.sql": [("table_identity", "notification_devices"),
+                                       ("table_identity", "notification_preferences"),
+                                       ("table_identity", "notification_prompts"),
+                                       ("table_identity", "notification_reminders"),
+                                       ("function", "notification_push_targets"),
+                                       ("function", "notification_enqueue_due_reminders"),
+                                       ("function", "portal_push_register"),
+                                       ("function", "practitioner_push_register")],
 }
 # flag -> migrations that must have been run before the flag may be switched on
 FLAG_MIGRATIONS: dict[str, list[str]] = {}
@@ -88,18 +96,30 @@ _MAIL = {
     "SPPS_SMTP_HOST": (r"[A-Za-z0-9.-]{3,253}", "athlete, guardian and coach e-mails are sent by SMTP"),
     "SPPS_SMTP_USERNAME": (r".{1,320}", "SMTP sign-in"),
     "SPPS_SMTP_PASSWORD": (r".{1,500}", "SMTP sign-in"),
-    "SPPS_SMTP_FROM": (r"[^@\s]+@[^@\s]+\.[^@\s]+", "the sender address on every e-mail"),
+    "SPPS_SMTP_FROM": (r"(?:[^<>@]{1,100}\s<[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+>|[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+)",
+                       "the sender on every e-mail: name@example.org or Name <name@example.org>"),
     "SPPS_PUBLIC_BASE_URL": (r"https://[A-Za-z0-9.-]+(?::\d+)?/?", "e-mailed links must open the public https site in "
                                                                      "any browser or the app"),
 }
+FLAG_MIGRATIONS["SPPS_PUSH_ENABLED"] = ["0046_v2_notifications_push.sql"]
+FLAG_MIGRATIONS["SPPS_NOTIFY_WORKER_ENABLED"] = ["0046_v2_notifications_push.sql"]
+FLAG_VARS["SPPS_PUSH_ENABLED"] = {
+    "SPPS_VAPID_PUBLIC_KEY": (r"[A-Za-z0-9_-]{80,100}", "the browser needs the public VAPID key (base64url)"),
+    "SPPS_VAPID_PRIVATE_KEY": (r"[A-Za-z0-9_=-]{40,120}", "the server signs web push with the private VAPID key"),
+    "SPPS_VAPID_SUBJECT": (r"(?:mailto:[^@\s]+@[^@\s]+\.[^@\s]+|https://[A-Za-z0-9.-]+(?:/\S*)?)",
+                           "a generic contact for the push services: mailto:address or https://site"),
+}
 FLAG_VARS["SPPS_ATHLETE_LOOP_ENABLED"] = dict(_MAIL)
 FLAG_VARS["SPPS_SELF_SERVE_ENABLED"] = dict(_MAIL)
+FLAG_VARS["SPPS_NOTIFY_WORKER_ENABLED"] = dict(_MAIL)
 # Turn-on order recorded in DEPLOYMENT.md: each flag lists the flags that must already be on.
 FLAG_ORDER: dict[str, tuple[str, ...]] = {
     "SPPS_ATHLETE_LOOP_ENABLED": ("SPPS_PORTAL_ENABLED",),
     "SPPS_DIRECTORY_ENABLED": (),
     "SPPS_SELF_SERVE_ENABLED": ("SPPS_PORTAL_ENABLED", "SPPS_ATHLETE_LOOP_ENABLED", "SPPS_DIRECTORY_ENABLED"),
     "SPPS_DIRECTORY_BOOKING_ENABLED": ("SPPS_PORTAL_ENABLED", "SPPS_DIRECTORY_ENABLED"),
+    "SPPS_PUSH_ENABLED": ("SPPS_PORTAL_ENABLED",),
+    "SPPS_NOTIFY_WORKER_ENABLED": ("SPPS_PORTAL_ENABLED",),
 }
 
 
@@ -126,6 +146,9 @@ def validate_env(env=None) -> None:
         raise PreflightError("SPPS_SELF_SERVE_ENABLED requires the athlete loop and the directory to be on")
     if "SPPS_DIRECTORY_BOOKING_ENABLED" in on and not {"SPPS_PORTAL_ENABLED", "SPPS_DIRECTORY_ENABLED"} <= on:
         raise PreflightError("SPPS_DIRECTORY_BOOKING_ENABLED requires SPPS_PORTAL_ENABLED and SPPS_DIRECTORY_ENABLED")
+    for flag in ("SPPS_PUSH_ENABLED", "SPPS_NOTIFY_WORKER_ENABLED"):
+        if flag in on and "SPPS_PORTAL_ENABLED" not in on:
+            raise PreflightError(f"{flag} requires SPPS_PORTAL_ENABLED=true")
     for flag, needed in FLAG_VARS.items():
         if flag in on:
             for name, (pattern, reason) in needed.items():

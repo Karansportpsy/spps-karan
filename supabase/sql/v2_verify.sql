@@ -1,7 +1,8 @@
--- SPPS production database: v2 verification (read-only). Run after steps 00-46, as the last step (98_verify.sql is the v1 check;
+-- SPPS production database: v2 verification (read-only). Run after steps 00-47, as the last step (98_verify.sql is the v1 check;
 -- its expected numbers describe a v1-only database). Every row should read as the comment beside it says.
--- Expected after 0045 (46_0045; functions only, table and policy counts unchanged): tables spps_dev 63 / spps_identity_dev 36, policies 96 / 96, force_rls_missing = 0,
--- api_roles_with_access = 0, anon_execute_on_definer = 0, v2 migrations = 13, missing v2 tables = (none).
+-- Expected after 0046 (47_0046; four identity tables for notifications): tables spps_dev 63 / spps_identity_dev 40, policies 96 / 112, force_rls_missing = 0,
+-- api_roles_with_access = 0, anon_execute_on_definer = 0, v2 migrations = 14, missing v2 tables = (none).
+-- After 0045 but before 0046: tables 63 / 36, policies 96 / 96, v2 migrations = 13.
 -- After 0042 but before 0043: tables 61 / 36, policies 91 / 96, v2 migrations = 10, and the two 0043 tables are listed as
 -- missing (measured on a fresh serial build).
 SELECT 'tables spps_dev' AS check, count(*)::text AS value FROM pg_tables WHERE schemaname='spps_dev'
@@ -21,6 +22,7 @@ UNION ALL SELECT 'missing v2 tables', coalesce(string_agg(t, ','), '(none)') FRO
   'spps_dev.shared_reports','spps_dev.report_links','spps_dev.directory_profiles','spps_dev.directory_snapshot',
   'spps_dev.practitioner_services','spps_dev.directory_service_snapshot',
   'spps_identity_dev.loop_accounts','spps_identity_dev.loop_links',
-  'spps_identity_dev.loop_share_requests']) t WHERE to_regclass(t) IS NULL
+  'spps_identity_dev.loop_share_requests','spps_identity_dev.notification_devices','spps_identity_dev.notification_preferences',
+  'spps_identity_dev.notification_prompts','spps_identity_dev.notification_reminders']) t WHERE to_regclass(t) IS NULL
 UNION ALL SELECT 'login roles', string_agg(rolname, ',' ORDER BY rolname) FROM pg_roles
   WHERE rolname LIKE 'spps%' AND rolcanlogin AND NOT rolsuper AND NOT rolbypassrls;

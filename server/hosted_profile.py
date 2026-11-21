@@ -236,8 +236,8 @@ def validate_portal(env, identity_database: str) -> dict:
         raise HostedProfileError("SPPS_PORTAL_DEV_OUTBOX is local-only; hosted e-mail uses the SMTP provider")
     if env.get("SPPS_NOTIFY_PROVIDER", "smtp") != "smtp":
         raise HostedProfileError("Hosted notification delivery requires the SMTP provider")
-    if not env.get("SPPS_SMTP_HOST") or not env.get("SPPS_SMTP_SENDER"):
-        raise HostedProfileError("Hosted portal requires SPPS_SMTP_HOST and SPPS_SMTP_SENDER")
+    if not env.get("SPPS_SMTP_HOST") or not (env.get("SPPS_SMTP_SENDER") or env.get("SPPS_SMTP_FROM")):
+        raise HostedProfileError("Hosted portal requires SPPS_SMTP_HOST and SPPS_SMTP_SENDER (or SPPS_SMTP_FROM)")
     base = urlparse(env.get("SPPS_PUBLIC_BASE_URL", ""))
     allowed = {h.strip().lower() for h in env.get("MODEL_C_ALLOWED_HOSTS", "").split(",") if h.strip()}
     if base.scheme != "https" or not base.hostname or base.hostname.lower() not in allowed or base.path not in ("", "/"):

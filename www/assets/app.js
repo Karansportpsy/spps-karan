@@ -11,6 +11,7 @@ const fdate=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+
 // Clear all confidential per-practitioner UI state before switching accounts.
 // Public directory preferences stay in memory; private caseload data does not.
 function clearPrivateState(){
+ if(window.SPPSPush)SPPSPush.stop();
  sessionEpoch++;athleteLoadSequence++;athleteSelectionRevision++;workspaceLoadSequence++;
  Object.assign(state,{user:null,csrf:'',view:'overview',dashboard:null,athletes:[],athleteId:null,athleteDetail:null,caseId:null,caseDetail:null,factors:[],observations:[],interventions:[],reports:[],selectedGraph:null,bookings:[],appointments:[],appointmentTab:'Pending',slots:[],ownProgrammes:[],programmeEnquiries:[],organisationQuotes:[],offlineAssessments:[],injuries:[],indices:{series:[]},tierInfo:null,lifecycle:undefined,privateProfile:{},adminReviews:[],supabaseEmail:'',pendingSignupEmail:'',passwordRecovery:false,mfaFactorId:null,mfaEnrollment:false});
 }
@@ -183,7 +184,7 @@ async function handleSupabaseLogin(){
    access_token:sessionData.session.access_token,terms_accepted:true
   }});
  }catch(err){await showApplicationStatus(sessionData.session.access_token,err,userData.user.email,carriedApplication(userData.user));return}
- clearPrivateState();state.user=result;state.csrf=result.csrf;state.loginNotice=null;
+ clearPrivateState();state.user=result;state.csrf=result.csrf;state.loginNotice=null;if(window.SPPSPush)SPPSPush.start({scope:'workspace',csrf:state.csrf});
  await loadAll();closeDialog();render();notify('Signed in with your verified email account');
 }
 // A confirmed account that never sent an application (for example the email link was opened in another browser)
@@ -310,7 +311,7 @@ function freeBookingsPage(){
  return `${pageHead('Appointments','Times are shown in your local time zone.',button('Add availability','client-bookings','btn'))}${appointmentsPanel()}`;
 }
 function freeSettingsPage(){
- return `${pageHead('Profile & Privacy','Free practitioner account and clinical data controls.')}<div class="content-grid">${window.SPPSv2?SPPSv2.settingsCards():''}<section class="card"><h3>Free Open Access</h3><p>All existing monitoring, assessments, reports, injury psychology, scheduling and video features are included at no charge.</p></section><section class="card"><h3>Professional profile</h3><p>Editing credentials temporarily removes a listing until reviewed.</p>${button('Edit qualifications','profile-edit','btn')}</section>${lifecycleCard()}</div>`;
+ return `${pageHead('Profile & Privacy','Free practitioner account and clinical data controls.')}<div class="content-grid">${window.SPPSv2?SPPSv2.settingsCards():''}${window.SPPSPush?SPPSPush.cardHtml():''}<section class="card"><h3>Free Open Access</h3><p>All existing monitoring, assessments, reports, injury psychology, scheduling and video features are included at no charge.</p></section><section class="card"><h3>Professional profile</h3><p>Editing credentials temporarily removes a listing until reviewed.</p>${button('Edit qualifications','profile-edit','btn')}</section>${lifecycleCard()}</div>`;
 }
 
 function directoryPage(){
@@ -614,7 +615,7 @@ async function loadAll(){
  if(request!==workspaceLoadSequence||selectedVersion!==athleteSelectionRevision)return;
  await betaLoadAll();
 }
-async function openStudio(){navigateSection('studio','/studio');if(!state.user){try{const user=await api('/api/auth/me');state.user=user;state.csrf=user.csrf;await loadAll()}catch{}}render()}
+async function openStudio(){navigateSection('studio','/studio');if(!state.user){try{const user=await api('/api/auth/me');state.user=user;state.csrf=user.csrf;if(window.SPPSPush)SPPSPush.start({scope:'workspace',csrf:state.csrf});await loadAll()}catch{}}render()}
 async function action(el,evt){let a=el.dataset.action;
  if(a.startsWith('v2:')&&window.SPPSv2){await SPPSv2.action(a,el,evt);return}
  if(a==='v2-email-resend'){const r=await api(`/api/admin/email-deliveries/${Number(el.dataset.id)}/resend`,{method:'POST',body:{}});await loadRegistrationSummary();render();notify(r.status==='sent'?'Email sent':'Email still not delivered: check the mail settings');return}
@@ -897,7 +898,7 @@ async function submit(form){const type=form.dataset.form;const raw=(key)=>val(fo
      await handleSupabaseLogin();return;
    }
    const result=await api('/api/auth/login',{method:'POST',body:{email:raw('email'),password:raw('password'),terms_accepted:form.elements.namedItem('terms_accepted').checked}});
-   clearPrivateState();state.user=result;state.csrf=result.csrf;await loadAll();state.view='overview';render();notify('Welcome to the practitioner workspace');return;
+   clearPrivateState();state.user=result;state.csrf=result.csrf;if(window.SPPSPush)SPPSPush.start({scope:'workspace',csrf:state.csrf});await loadAll();state.view='overview';render();notify('Welcome to the practitioner workspace');return;
  }
  if(type==='athlete'){
    const created=await api('/api/athletes',{method:'POST',body:{code:raw('code'),display_name:raw('display_name'),sport:raw('sport'),athlete_group:raw('athlete_group'),service_consent_recorded:form.elements.namedItem('service_consent_recorded').checked}});state.athleteId=created.id;await loadAll();state.view='athletes';closeDialog();render();notify('Athlete created. Overview opened below.');if(window.matchMedia('(max-width:900px)').matches)document.getElementById('athlete-overview-panel')?.scrollIntoView({block:'start',behavior:'smooth'});return;

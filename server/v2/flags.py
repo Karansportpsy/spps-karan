@@ -17,6 +17,8 @@ FLAGS = {
     "SPPS_REPORT_LINKS_ENABLED": ("false", "Phase 5 expiring external report links"),
     "SPPS_PRACTITIONER_CLOSURE_ENABLED": ("false", "Phase 2 orderly practitioner account closure"),
     "SPPS_DIRECTORY_BOOKING_ENABLED": ("false", "Booking-only directory: request an appointment from a directory card"),
+    "SPPS_PUSH_ENABLED": ("false", "Phase 4 push notifications (Web Push, Android FCM) for every role"),
+    "SPPS_NOTIFY_WORKER_ENABLED": ("false", "Phase 4 in-process delivery loop: queued e-mail, push and session reminders"),
 }
 
 
@@ -45,6 +47,15 @@ def self_serve_enabled() -> bool:
 def directory_booking_enabled() -> bool:
     # Requests are made from a portal account (13A identity) for a practitioner found in the directory.
     return _on("SPPS_DIRECTORY_BOOKING_ENABLED") and portal_enabled() and directory_enabled()
+
+
+def push_enabled() -> bool:
+    # Devices and preferences live in the identity database, which the portal switch brings up.
+    return _on("SPPS_PUSH_ENABLED") and portal_enabled()
+
+
+def notify_worker_enabled() -> bool:
+    return _on("SPPS_NOTIFY_WORKER_ENABLED") and portal_enabled()
 
 
 def ai_globally_enabled() -> bool:

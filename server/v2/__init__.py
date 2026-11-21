@@ -40,4 +40,27 @@ def install(app, ctx) -> None:
     if flags.directory_booking_enabled():
         from . import directory_booking
         directory_booking.register(app, ctx)
+    if flags.push_enabled():
+        from . import push
+        push.register(app, ctx)
+    if flags.notify_worker_enabled() or flags.push_enabled():
+        # The delivery loop starts with the server and stops with it (server/notify_runner.py). It is wrapped around the
+        # router lifespan, which works on every Starlette version; test clients that do not run the lifespan never
+        # start it.
+        from contextlib import asynccontextmanager
+        inner = app.router.lifespan_context
+
+        @asynccontextmanager
+        async def _lifespan(a):
+            async with inner(a) as state:
+                from .. import notify_runner
+                if getattr(a.state, "portal_auth_engine", None) is not None:
+                    a.state.notify_thread = notify_runner.start(a, push_on=flags.push_enabled())
+                try:
+                    yield state
+                finally:
+                    stop = getattr(a.state, "notify_stop", None)
+                    if stop is not None:
+                        stop.set()
+        app.router.lifespan_context = _lifespan
     # Later phases append their route groups here.
