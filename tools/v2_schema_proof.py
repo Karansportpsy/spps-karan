@@ -27,7 +27,10 @@ h.DATABASES = tuple(h.DATABASES) + (A, B)
 
 
 def dump(db: str) -> str:
-    out = subprocess.run([f"{h.BIN}/pg_dump" if h.BIN else "pg_dump", "--schema-only", "-h", h.HOST, "-p", str(h.PORT),
+    if h.DOCKER:
+        out = h.docker_command("pg_dump", db, "--schema-only")
+    else:
+        out = subprocess.run([f"{h.BIN}/pg_dump" if h.BIN else "pg_dump", "--schema-only", "-h", h.HOST, "-p", str(h.PORT),
                           "-U", "postgres", "-d", db], capture_output=True, text=True, check=True).stdout
     keep = [ln for ln in out.splitlines() if not ln.startswith(("--", "\\restrict", "\\unrestrict")) and ln.strip()]
     return "\n".join(keep)

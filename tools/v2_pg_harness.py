@@ -27,6 +27,26 @@ HOST = "127.0.0.1"
 DATABASES = ("spps_dev_v2test", "spps_dev_v2mig", "spps_dev_identity")
 LOGIN_ROLES = ("spps_dev_app", "spps_dev_auth", "spps_identity_auth", "spps_identity_portal")
 BIN = next((p for p in ("/usr/lib/postgresql/16/bin", "/usr/lib/postgresql/17/bin") if Path(p).is_dir()), "")
+DOCKER = os.environ.get("SPPS_V2_PG_DOCKER") == "1"
+if DOCKER:
+    sys.path.insert(0, str(ROOT))  # support both python -m tools.v2_pg_harness and direct script use
+    from tools import ephemeral_db, ephemeral_guard
+    BASE = ephemeral_db.STATE
+    PORT = ephemeral_guard.PORT
+    DATABASES = (ephemeral_guard.CLINICAL_DATABASE, ephemeral_guard.IDENTITY_DATABASE)
+
+
+def docker_command(program: str, database: str, *args: str, source: str | None = None) -> str:
+    """Execute only in the labelled, loopback-only tmpfs test container; never a protected cluster."""
+    problems = ephemeral_guard.container_problems(ephemeral_guard.inspect_container())
+    if problems or database not in (*DATABASES, "postgres"):
+        raise RuntimeError("STOP: invalid disposable PostgreSQL target")
+    cmd = ["docker", "exec", "-i", ephemeral_guard.CONTAINER, program, "-U", "postgres", "-d", database, *args]
+    result = subprocess.run(cmd, input=source, capture_output=True, text=True, encoding="utf-8")
+    if result.returncode:
+        # SQL errors can include a generated password; never echo a server reply here.
+        raise RuntimeError(f"Disposable PostgreSQL {program} failed (exit {result.returncode})")
+    return result.stdout
 
 
 def _as_pg(cmd: str) -> None:
@@ -40,6 +60,9 @@ def _as_pg(cmd: str) -> None:
 def psql(database: str, *args: str, sql_file: Path | None = None, sql: str | None = None, quiet=True) -> str:
     if database not in DATABASES and database != "postgres":
         raise SystemExit("refusing an unknown database")
+    if DOCKER:
+        source = sql_file.read_text(encoding="utf-8") if sql_file else sql
+        return docker_command("psql", database, "-X", "-v", "ON_ERROR_STOP=1", "-q", *args, source=source)
     cmd = ["psql", "-X", "-v", "ON_ERROR_STOP=1", "-h", HOST, "-p", str(PORT), "-U", "postgres", "-d", database]
     if quiet:
         cmd.append("-q")
@@ -60,6 +83,8 @@ def serial_files() -> list[Path]:
 
 
 def up() -> None:
+    if DOCKER:
+        return up_docker()
     if not BIN:
         raise SystemExit("PostgreSQL server binaries not found")
     down(quiet=True)
@@ -94,6 +119,9 @@ def up() -> None:
 
 
 def down(quiet=False) -> None:
+    if DOCKER:
+        ephemeral_db.down()
+        return
     if (DATA / "postmaster.pid").exists():
         try:
             _as_pg(f"pg_ctl -D {DATA} -m fast stop >/dev/null")
@@ -106,7 +134,36 @@ def down(quiet=False) -> None:
 
 
 def env() -> None:
+    if DOCKER:
+        raise SystemExit("Disposable credentials are not displayed; set SPPS_V2_PG_ENV to the harness v2.env file.")
     print((BASE / "env").read_text(), end="")
+
+
+def up_docker() -> None:
+    """Build the v2 serial schema through the sanctioned ephemeral lifecycle, including on Windows."""
+    from dotenv import dotenv_values
+    from sqlalchemy.engine import URL
+    ephemeral_db.up_empty()
+    password = dotenv_values(ephemeral_db.ADMIN_ENV)["SPPS_EPHEMERAL_PASSWORD"]
+    clinical, identity = DATABASES
+    psql("postgres", sql=f'CREATE DATABASE "{identity}"')
+    for db in DATABASES:
+        for f in serial_files():
+            psql(db, sql_file=f)
+    passwords = {r: secrets.token_urlsafe(24) for r in LOGIN_ROLES}
+    for role, pw in passwords.items():
+        psql(clinical, sql=f"ALTER ROLE {role} PASSWORD '{pw}'")
+
+    def url(role, pw, db):
+        return URL.create("postgresql+psycopg", username=role, password=pw, host=HOST,
+                          port=PORT, database=db).render_as_string(hide_password=False)
+
+    values = {"SPPS_V2_PG_ADMIN_URL": url("postgres", password, clinical),
+              "SPPS_V2_PG_IDENTITY_ADMIN_URL": url("postgres", password, identity)}
+    for role, pw in passwords.items():
+        values[f"SPPS_V2_PG_{role.upper()}_URL"] = url(role, pw, identity if role.startswith("spps_identity") else clinical)
+    ephemeral_db._write_secret_file(BASE / "v2.env", values)
+    print(f"PASS: {len(serial_files())} serial files applied to each guarded disposable database; credentials not displayed")
 
 
 if __name__ == "__main__":
