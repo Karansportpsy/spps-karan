@@ -1,6 +1,6 @@
 """Account lifecycle phase A against real PostgreSQL roles (migration 0032, SPPS_ACCOUNT_LIFECYCLE_ENABLED=true).
 
-Proves what the SQLite tests cannot: the SECURITY DEFINER switch, the directory/photo/enquiry functions, that the
+Proves what the SQLite tests cannot: the SECURITY DEFINER switch, the directory/photo functions, that the
 application role gained no table right, row-level isolation of the export under the real roles (no table may be
 refused: `warnings` must be empty) and the startup refusal. Self-contained: it finds or claims the owner itself, so
 it runs after the owner/registration story or alone.
@@ -28,17 +28,6 @@ def _owner(w):
 
 def _listed(w):
     return {row["id"] for row in w.visitor.get("/api/public/practitioners").json()}
-
-
-def _service_id(w):
-    return w.visitor.get("/api/public/services").json()["services"][0]["id"]
-
-
-def _enquiry(w, practitioner_id):
-    return w.visitor.post("/api/public/enquiries", json={
-        "service_id": _service_id(w), "practitioner_id": practitioner_id, "contact_name": "Lifecycle Visitor",
-        "contact_email": "lifecycle.visitor@example.com", "enquiring_for": "myself", "sport": "Archery",
-        "support_topic": "Confidence", "contact_preference": "email", "consent": True, "website": ""})
 
 
 def _state(browser):
@@ -69,7 +58,6 @@ def test_a_listed_practitioner_exists(world):
     assert pid in _listed(w)
     state = _state(b)
     assert state["deactivated"] is False and state["listed"] is True and state["reauth"] == "supabase"
-    assert _enquiry(w, pid).status_code == 201, "positive control"
 
 
 def test_deactivation_removes_the_public_surface_but_not_the_workspace(world):
@@ -79,7 +67,6 @@ def test_deactivation_removes_the_public_surface_but_not_the_workspace(world):
     assert off.json()["deactivated"] is True and off.json()["listed"] is False
     assert pid not in _listed(w), "public_practitioner_directory must drop the practitioner"
     assert w.visitor.get(f"/api/public/practitioners/{pid}/photo").status_code == 404
-    assert _enquiry(w, pid).status_code == 404, "submit_public_enquiry must refuse a deactivated practitioner"
     assert me.get("/api/athletes").status_code == 200
     assert me.get("/api/auth/me").status_code == 200
     with w.h.admin_conn() as c:
@@ -141,7 +128,6 @@ def test_reactivation_restores_the_listing_without_a_new_review(world):
     assert on.status_code == 200 and on.json()["listed"] is True and on.json()["deactivated"] is False
     assert pid in _listed(w)
     assert w.visitor.get(f"/api/public/practitioners/{pid}/photo").status_code == 200
-    assert _enquiry(w, pid).status_code == 201
 
 
 def test_export_reads_every_table_under_the_real_roles_and_only_own_rows(world):

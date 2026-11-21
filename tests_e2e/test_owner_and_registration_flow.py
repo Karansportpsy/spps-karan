@@ -40,14 +40,14 @@ def _queue_row(w, name):
 
 def test_serial_sql_builds_and_matches_the_expected_shape(world):
     w = world
-    assert w.sql_steps == 34
+    assert w.sql_steps == 46  # 00..45: the serial set including 0042 (booking-only), 0043 (services), 0044 (index)
     with w.h.admin_conn() as c:
         one = lambda q: c.execute(q).fetchone()[0]
-        assert one("SELECT count(*) FROM pg_tables WHERE schemaname='spps_dev'") == 32
-        assert one("SELECT count(*) FROM pg_tables WHERE schemaname='spps_identity_dev'") == 22
-        assert one("SELECT count(*) FROM pg_policies WHERE schemaname='spps_dev'") == 41
-        assert one("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='spps_dev'") == 13
-        assert one("SELECT count(*) FROM spps_ops.migration_history") == 31
+        assert one("SELECT count(*) FROM pg_tables WHERE schemaname='spps_dev'") == 63
+        assert one("SELECT count(*) FROM pg_tables WHERE schemaname='spps_identity_dev'") == 36
+        assert one("SELECT count(*) FROM pg_policies WHERE schemaname='spps_dev'") == 96
+        assert one("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='spps_dev'") == 26
+        assert one("SELECT count(*) FROM spps_ops.migration_history") == 43
         assert one("""SELECT count(*) FROM pg_constraint con JOIN pg_class c ON c.oid=con.conrelid
                       JOIN pg_namespace n ON n.oid=c.relnamespace
                       WHERE con.contype='f' AND n.nspname IN ('spps_dev','spps_identity_dev') AND NOT EXISTS (
@@ -88,7 +88,7 @@ def test_owner_signs_in_as_admin_with_both_workspaces(world):
     assert _admins(w) == [w.owner_email.lower()]
     # one session reaches the admin dashboard AND the practitioner workspace
     assert owner.get("/api/admin/practitioner-reviews").status_code == 200
-    for path in ("/api/dashboard", "/api/athletes", "/api/enquiries", "/api/practitioner/profile"):
+    for path in ("/api/dashboard", "/api/athletes", "/api/practitioner/profile"):
         assert owner.get(path).status_code == 200, path
 
 
@@ -125,16 +125,17 @@ def test_new_registration_is_pending_hidden_and_blocked(world):
     STATE["a_id"] = row["practitioner_id"]
 
 
-def test_pending_applicant_cannot_receive_public_enquiries(world):
+def test_there_is_no_enquiry_surface_for_anyone(world):
+    """Booking-only directory (migration 0042): the public form and every inbox are gone, for visitors,
+    practitioners and the owner alike. Appointments are requested from the athlete portal and approved by the
+    practitioner; a pending applicant is never listed, so nobody can book them."""
     w = world
-    services = w.visitor.get("/api/public/services").json()["services"]
-    assert services and services[0]["title"]
-    STATE["service_id"] = services[0]["id"]
-    STATE["enquiry"] = {
-        "service_id": STATE["service_id"], "practitioner_id": STATE["a_id"], "contact_name": "Test Athlete",
-        "contact_email": "athlete@example.com", "enquiring_for": "myself", "sport": "Cricket",
-        "support_topic": "Confidence", "contact_preference": "email", "consent": True, "website": ""}
-    assert w.visitor.post("/api/public/enquiries", json=STATE["enquiry"]).status_code == 404
+    # In hosted mode the route allowlist answers 503 for a path that no longer exists (404 elsewhere).
+    gone = (404, 405, 503)
+    assert w.visitor.post("/api/public/enquiries", json={"contact_name": "Test Athlete", "website": ""}).status_code in gone
+    for path in ("/api/enquiries", "/api/v2/directory/enquiries"):
+        assert w.visitor.get(path).status_code in gone + (401,), path
+    assert STATE["a_id"] not in {p["id"] for p in _directory(w)}, "a pending applicant is not listed"
 
 
 def test_impostors_cannot_become_admin_at_any_layer(world):
@@ -200,21 +201,11 @@ def test_approval_lists_the_practitioner_below_the_owner(world):
     assert _admins(w) == [w.owner_email.lower()]
 
 
-def _names(box):
-    rows = box if isinstance(box, list) else box.get("enquiries", [])
-    return [e.get("contact_name") for e in rows]
-
-
-def test_approved_practitioner_receives_public_enquiries_in_their_own_inbox(world):
-    w = world
-    # a bot that fills the hidden field is told "received" but nothing is stored
-    r = w.visitor.post("/api/public/enquiries", json={**STATE["enquiry"], "contact_name": "Spam Bot", "website": "http://spam.example"})
-    assert r.status_code in (200, 201) and "id" not in r.json()
-    r = w.visitor.post("/api/public/enquiries", json=STATE["enquiry"])
-    assert r.status_code in (200, 201), r.text
-    inbox = _names(STATE["a"].get("/api/enquiries").json())
-    assert "Test Athlete" in inbox and "Spam Bot" not in inbox
-    assert "Test Athlete" not in _names(STATE["owner"].get("/api/enquiries").json())
+def test_approved_practitioner_and_owner_have_no_enquiry_inbox(world):
+    for who in ("a", "owner"):
+        browser = STATE[who]
+        assert browser.get("/api/enquiries").status_code in (404, 405, 503), who
+        assert "new_enquiries" not in browser.get("/api/dashboard").json().get("stats", {}), who
 
 
 # ---- 6. profile edits ------------------------------------------------------------------------------------------

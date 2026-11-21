@@ -166,9 +166,10 @@ below can be undone.
 | 10 | `42_0041_v2_release_hardening.sql` | as above |
 | 11 | `43_0042_v2_appointment_only_directory.sql` | **contract step - run only AFTER the booking-only code is live.** Removes the enquiry tables/functions. Refuses to run (drops nothing) if any enquiry row exists; export or delete those rows first |
 | 12 | `44_0043_v2_practitioner_services.sql` | **expand step - run BEFORE deploying the phase 2 (services and directory booking) code**; the release that is live keeps working after it. Adds `practitioner_services`, `directory_service_snapshot`, three identity columns and five identity functions (created as `spps_identity_owner`). Rollback: restore the backup taken above |
-| 13 | `v2_verify.sql` | read-only; compare with the expected values at the top (after step 12: 63 / 36 tables, policies 96 / 96, 11 v2 migrations, missing v2 tables `(none)`; the three safety rows stay 0) |
+| 13 | `45_0044_v2_service_snapshot_fk_index.sql` | adds one index (covering the tenant foreign key of `directory_service_snapshot`); safe to run more than once; run right after step 12 |
+| 14 | `v2_verify.sql` | read-only; compare with the expected values at the top (after step 13: 63 / 36 tables, policies 96 / 96, 12 v2 migrations, missing v2 tables `(none)`; the three safety rows stay 0) |
 
-The new code refuses to start (and `/health/ready` stays red) until steps 2–10 (and, for the phase 2 code, step 12) have
+The new code refuses to start (and `/health/ready` stays red) until steps 2–10 (and, for the phase 2 code, steps 12 and 13) have
 run, so run the SQL **before**
 deploying the v2 code. The SQL only adds tables, columns, policies and functions; the v1 code keeps working on a
 database that already has them, so the order "SQL first, then code" is always safe. Never edit a file that has

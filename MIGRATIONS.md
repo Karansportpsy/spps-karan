@@ -52,9 +52,10 @@ is generated from `migrations/XXXX_*.sql` (`python tools/v2_serial_sql.py`) and 
 | 43 | `42_0041_v2_release_hardening.sql` | A practitioner's report links stop opening as soon as that practitioner is deactivated, closes their account, or is rejected or sent back for review by the platform owner. |
 | 44 | `43_0042_v2_appointment_only_directory.sql` | v2 migration. |
 | 45 | `44_0043_v2_practitioner_services.sql` | Practitioner service catalogue and appointment requests from the directory. |
-| 46 | `v2_verify.sql` | Read-only check of the whole v1 + v2 database (run after step 41; expected values at the top). |
-| 47 | `98_verify.sql` | Read-only check of the v1 objects (run after the serial files; v1 expected values). |
-| 48 | `99_set_role_passwords.sql` | Template: set the four login-role passwords (edit a copy, never save it). |
+| 46 | `45_0044_v2_service_snapshot_fk_index.sql` | v2 migration. |
+| 47 | `v2_verify.sql` | Read-only check of the whole v1 + v2 database (run after step 41; expected values at the top). |
+| 48 | `98_verify.sql` | Read-only check of the v1 objects (run after the serial files; v1 expected values). |
+| 49 | `99_set_role_passwords.sql` | Template: set the four login-role passwords (edit a copy, never save it). |
 
 ## Source migrations (`migrations/`)
 
@@ -104,6 +105,7 @@ is generated from `migrations/XXXX_*.sql` (`python tools/v2_serial_sql.py`) and 
 - `0041_v2_release_hardening.sql` → `supabase/sql/42_0041_v2_release_hardening.sql` — A practitioner's report links stop opening as soon as that practitioner is deactivated, closes their account, or is rejected or sent back for review by the platform owner.
 - `0042_v2_appointment_only_directory.sql` → `supabase/sql/43_0042_v2_appointment_only_directory.sql` — v2 migration.
 - `0043_v2_practitioner_services.sql` → `supabase/sql/44_0043_v2_practitioner_services.sql` — Practitioner service catalogue and appointment requests from the directory.
+- `0044_v2_service_snapshot_fk_index.sql` → `supabase/sql/45_0044_v2_service_snapshot_fk_index.sql` — v2 migration.
 
 After the serial files, run `v2_verify.sql` (whole database; expected values at the top), optionally
 `98_verify.sql` (v1 objects only; its counts describe a v1-only database), then
