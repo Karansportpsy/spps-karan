@@ -106,3 +106,9 @@ services:
         sync: false
       - key: SPPS_FIELD_KEY_CURRENT
         value: k1
+
+      # Phase 3 video relay: owner supplies values, never commit the shared secret.
+      - key: MODEL_C_ICE_URLS
+        sync: false
+      - key: MODEL_C_TURN_SECRET
+        sync: false

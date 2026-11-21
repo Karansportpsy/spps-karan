@@ -62,7 +62,7 @@
         <button class="btn primary" type="submit">Create account</button></form>`,
       verify: `<form data-form="verify">${field('Code from the link in your email (only if the link did not open)', '<input name="token" required minlength="20" maxlength="200" autocomplete="one-time-code">')}
         <button class="btn primary" type="submit">Verify email</button></form>
-        <form data-form="resend" style="margin-top:14px">${field('Email (to resend)', '<input name="email" type="email" required maxlength="250">')}<button class="btn small" type="submit">Resend code</button></form>`,
+        <form data-form="resend" style="margin-top:14px">${field('Email (to send the link again)', '<input name="email" type="email" required maxlength="250">')}<button class="btn small" type="submit">Resend link</button></form>`,
       forgot: `<form data-form="forgot">${field('Email', '<input name="email" type="email" required maxlength="250">')}<button class="btn primary" type="submit">Send reset link</button></form>`,
       reset: `<form data-form="reset"><input type="hidden" name="token" value="${esc(state.data.resetToken || '')}">
         ${field('Reset code', `<input name="token_visible" value="${esc(state.data.resetToken || '')}" required minlength="20" maxlength="200">`)}
@@ -103,7 +103,7 @@
     if (b.sent) return `<section class="card" data-section="directory-booking"><h2>Request sent</h2><p>${esc(b.sent.message)}</p><p class="small">${esc(b.sent.service)} · ${esc(new Date(b.sent.starts_at).toLocaleString('en-IN'))}</p><p class="muted small">${esc(b.sent.notice || '')}</p>${btn('Done', 'book-close', 'btn small primary')}</section>`;
     const c = b.card, services = c.services || [];
     const subjects = bookSubjects();
-    const head = `<h2>Request an appointment with ${esc(c.display_name)}</h2><p class="muted small">Until they approve, the practitioner sees only the athlete's display name, the service, the time and your note. Appointments are free.</p>`;
+    const head = `<h2>Request an appointment with ${esc(c.display_name)}</h2><p class="muted small">Until they approve, the practitioner sees only the athlete's display name, the service and the time. Appointments are free.</p>`;
     if (!services.length) return `<section class="card" data-section="directory-booking">${head}<p>This practitioner has not listed any services yet.</p>${btn('Close', 'book-close', 'btn small')}</section>`;
     if (!subjects.length) return `<section class="card" data-section="directory-booking">${head}<p>${has('guardian') ? 'Add the young athlete below and wait until your guardian authority for them, including “Request and manage bookings”, is verified. Then you can request an appointment for them.' : 'Only an athlete account (18 or over) or a verified guardian can request appointments.'}</p>${btn('Close', 'book-close', 'btn small')}</section>`;
     const svc = services.find(x => String(x.service_id) === String(b.service_id));
@@ -212,25 +212,36 @@
     'programme.discontinued': 'A programme was discontinued', 'summary.released': 'Your practitioner shared a summary',
   };
   const rupees = p => `₹${(Number(p || 0) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
-  const dt = s => s ? new Date(s).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+  const dt = s => s ? new Date(s).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZoneName: 'short' }) : '—';
+
+  function portalVideo(b) {
+    const now = Date.now();
+    return b.can_manage && b.status === 'CONFIRMED' && b.video_requested && !b.video_closed
+      && now >= Date.parse(b.starts_at) - 10 * 60000 && now <= Date.parse(b.ends_at) + 15 * 60000
+      ? btn('Join video', 'join-video', 'btn small primary', `data-id="${b.booking_id}"`) : '';
+  }
+  setInterval(() => {
+    for (const el of root.querySelectorAll('[data-portal-video]')) {
+      const b = (state.data.bookings || []).find(x => String(x.booking_id) === el.dataset.portalVideo);
+      if (b) { const html = portalVideo(b); if (el.innerHTML !== html) el.innerHTML = html; }
+    }
+  }, 1000);
 
   function appointmentsCard() {
     const active = (state.data.links || []).filter(l => l.active);
     const bookings = state.data.bookings || [];
     const rows = bookings.map(b => {
       let actions = '';
-      const now = Date.now();
-      const videoOpen = b.status === 'CONFIRMED' && b.video_requested && !b.video_closed && now >= new Date(b.starts_at).getTime() - 15 * 60000 && now <= new Date(b.ends_at).getTime() + 15 * 60000;
-      if (b.can_manage && videoOpen) actions += btn('Join video', 'join-video', 'btn small primary', `data-id="${b.booking_id}"`);
+      actions += `<span data-portal-video="${b.booking_id}">${portalVideo(b)}</span>`;
       if (b.status === 'CONFIRMED' && b.video_closed) actions += '<span class="muted small" data-video-ended>Video ended</span>';
       if (!state.freeAccess && b.can_manage && b.status === 'APPROVED_AWAITING_PAYMENT') actions += btn(`Pay ${rupees(b.amount_paise)}`, 'pay-booking', 'btn small primary', `data-id="${b.booking_id}"`);
-      if (b.can_manage && b.status === 'RESCHEDULE_PROPOSED') actions += btn('Accept new time', 'reschedule-yes', 'btn small primary', `data-id="${b.booking_id}"`) + btn('Keep original', 'reschedule-no', 'btn small', `data-id="${b.booking_id}"`);
+      if (b.can_manage && b.status === 'RESCHEDULE_PROPOSED' && Date.parse(b.starts_at) > Date.now()) actions += btn('Accept new time', 'reschedule-yes', 'btn small primary', `data-id="${b.booking_id}"`) + btn('Decline new time', 'reschedule-no', 'btn small', `data-id="${b.booking_id}"`);
       if (b.can_manage && ['PENDING_APPROVAL', 'APPROVED_AWAITING_PAYMENT', 'CONFIRMED'].includes(b.status)) actions += btn('Cancel', 'cancel-booking', 'btn small', `data-id="${b.booking_id}" data-paid="${b.paid}"`);
       const due = b.action_deadline && ['PENDING_APPROVAL', 'APPROVED_AWAITING_PAYMENT', 'RESCHEDULE_PROPOSED'].includes(b.status)
         ? `<br><span class="muted small">by ${esc(dt(b.action_deadline))}</span>` : '';
       const why = b.decision_reason ? `<br><span class="muted small">${esc(b.decision_reason)}</span>` : '';
-      return `<tr data-booking-id="${b.booking_id}"><td>${esc(dt(b.starts_at))}</td><td>${esc(b.subject_display_name)}${b.video_requested ? ' · video' : ''}</td>
-        <td>${badge(BOOKING_LABEL[b.status] || b.status, b.status === 'CONFIRMED')}${due}${why}</td><td>${actions}</td></tr>`;
+      return `<tr data-booking-id="${b.booking_id}"><td data-label="Appointment">${esc(b.service_name || 'Appointment')}<br>${esc(dt(b.starts_at))} – ${esc(dt(b.ends_at))}<br><span class="small muted">${b.video_requested ? 'Online' : 'In person'} · local time</span></td><td data-label="For">${esc(b.subject_display_name)}</td>
+        <td data-label="Status">${badge(BOOKING_LABEL[b.status] || b.status, b.status === 'CONFIRMED')}${due}${why}</td><td data-label="Actions">${actions}</td></tr>`;
     }).join('');
     const checkout = '';
     const slots = state.data.slots;
@@ -249,7 +260,7 @@
       slotForm = '<p class="muted small" style="margin-top:12px">No open times right now.</p>';
     }
     const notes = (state.data.notifications || []).slice(0, 6).map(n => `<li class="${n.read ? 'muted' : ''}">${esc(NOTE_LABEL[n.kind] || n.kind)} · <span class="small">${esc(dt(n.created_at))}</span></li>`).join('');
-    return `<section class="card" data-section="appointments"><h2>Appointments</h2>${checkout}
+    return `<section class="card" data-section="appointments"><h2>My appointments</h2>${checkout}
       <div class="table-wrap"><table class="data-table"><thead><tr><th>When</th><th>For</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows || '<tr><td colspan="4" class="muted">No appointments yet.</td></tr>'}</tbody></table></div>${pickLink}${slotForm}
       ${notes ? `<h3>Updates</h3><ul data-notifications>${notes}</ul>` : ''}</section>`;
@@ -428,7 +439,7 @@
     }
     if (a === 'reschedule-yes' || a === 'reschedule-no') {
       await api(`/api/portal/bookings/${el.dataset.id}/reschedule-response`, { method: 'POST', body: { accept: a === 'reschedule-yes' } });
-      await load(); render(); notify(a === 'reschedule-yes' ? 'New time accepted' : 'Original time kept'); return;
+      await load(); render(); notify(a === 'reschedule-yes' ? 'New time accepted' : 'Proposed time declined'); return;
     }
     if (a === 'revoke-link') {
       if (!confirm('Disconnect from this practitioner? They will no longer share anything with you through the portal.')) return;

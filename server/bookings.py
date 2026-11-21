@@ -60,7 +60,7 @@ class RescheduleResponseIn(BaseModel):
 
 class DecisionIn(BaseModel):
     decision: Literal["approve", "decline"]
-    reason: str = Field(default="", max_length=240)
+    reason: Literal["", "Unavailable at this time", "Service unavailable", "Please choose another time"] = ""
     payment_window_hours: int = Field(default=24, ge=1, le=72)
 
 
@@ -173,7 +173,9 @@ def register_booking_routes(app: FastAPI, *, mode: str, db_session, get_current,
 
     @app.get("/api/portal/bookings")
     def portal_bookings(session=Depends(current_session)):
+        details = {r.booking_id: r.service_name for r in call("portal_booking_details", p_token_hash=tok(session))}
         return [{"booking_id": r.booking_id, "practitioner_id": r.practitioner_id, "person_id": r.person_id,
+                 "service_name": details.get(r.booking_id), "mode": "online" if r.video_requested else "in_person",
                  "subject_display_name": r.subject_display_name, "starts_at": iso(r.starts_at), "ends_at": iso(r.ends_at),
                  "amount_paise": r.amount_paise, "currency": r.currency, "status": r.status,
                  "video_requested": r.video_requested, "action_deadline": iso(r.action_deadline),
@@ -257,11 +259,8 @@ def register_booking_routes(app: FastAPI, *, mode: str, db_session, get_current,
 
     # ------------------------------------------------------------ practitioner
     def booking_details(practitioner_id: int) -> dict:
-        """0043 details (service, link state) — only when directory booking is on, so a database without 0043
-        (and every flag-off deployment) behaves exactly as before."""
-        from .v2 import flags as v2_flags
-        if not v2_flags.directory_booking_enabled():
-            return {}
+        """Service/link metadata remains available when directory intake is switched off.
+        Existing pending requests must keep their minimum-data protection."""
         return {r.booking_id: r for r in call("practitioner_booking_details", p_practitioner_id=practitioner_id)}
 
     def detail_view(d) -> dict:
@@ -274,7 +273,8 @@ def register_booking_routes(app: FastAPI, *, mode: str, db_session, get_current,
     @app.get("/api/booking-requests")
     def practitioner_bookings(user=Depends(get_current)):
         details = booking_details(user.id)
-        return [{**detail_view(details.get(r.booking_id)), "booking_id": r.booking_id, "slot_id": r.slot_id, "starts_at": iso(r.starts_at), "ends_at": iso(r.ends_at),
+        rows = [{**detail_view(details.get(r.booking_id)), "booking_id": r.booking_id, "slot_id": r.slot_id, "starts_at": iso(r.starts_at), "ends_at": iso(r.ends_at),
+                 "mode": "online" if r.video_requested else "in_person",
                  "amount_paise": r.amount_paise, "status": r.status, "subject_display_name": r.subject_display_name,
                  "via_guardian": r.via_guardian, "video_requested": r.video_requested, "client_note": r.client_note,
                  "action_deadline": iso(r.action_deadline), "rescheduled_from_id": r.rescheduled_from_id,
@@ -282,6 +282,13 @@ def register_booking_routes(app: FastAPI, *, mode: str, db_session, get_current,
                  "platform_paise": r.platform_paise,
                  "video_closed": bool(getattr(r, "video_closed", False))}
                 for r in call("practitioner_list_bookings", p_practitioner_id=user.id)]
+        for row in rows:
+            if row["first_request"]:
+                # Before linking: display name, service and slot only, plus action identifiers/state.
+                for key in ("client_note", "via_guardian", "amount_paise", "paid", "payment_status",
+                            "practitioner_paise", "platform_paise"):
+                    row.pop(key, None)
+        return rows
 
     @app.post("/api/booking-requests/{booking_id}/decision")
     def practitioner_decide(booking_id: int, payload: DecisionIn, user=Depends(get_current), db=Depends(db_session)):
@@ -324,10 +331,14 @@ def register_booking_routes(app: FastAPI, *, mode: str, db_session, get_current,
 
     @app.post("/api/booking-requests/{booking_id}/reschedule", status_code=201)
     def practitioner_reschedule(booking_id: int, payload: ProposeIn, user=Depends(get_current), db=Depends(db_session)):
+        # Check ownership first: another practitioner's booking always answers 404, regardless of the chosen slot.
+        if not any(r.booking_id == booking_id for r in call("practitioner_list_bookings", p_practitioner_id=user.id)):
+            raise HTTPException(404, "Not found")
         slot = db.scalar(select(AppointmentSlot).where(AppointmentSlot.id == payload.slot_id,
                                                        AppointmentSlot.practitioner_id == user.id,
                                                        AppointmentSlot.available == True))  # noqa: E712
-        if slot is None or slot.id in held_slots(user.id):
+        if (slot is None or _utc(slot.starts_at) <= datetime.now(timezone.utc) or slot.id in held_slots(user.id)
+                or db.scalar(select(Booking.id).where(Booking.slot_id == payload.slot_id, Booking.status.in_(LEGACY_HOLDING)))):
             raise HTTPException(409, "That time is no longer available")
         proposal = call("free_practitioner_propose_reschedule" if free_access.enabled() else "practitioner_propose_reschedule", p_practitioner_id=user.id, p_booking_id=booking_id,
                         p_slot_id=slot.id, p_starts_at=_utc(slot.starts_at), p_duration_minutes=slot.duration_minutes,

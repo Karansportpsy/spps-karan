@@ -16,3 +16,6 @@ Applies to all work on the SPPS web + Android platform, the Supabase database an
 ## Limits
 - `SPPS_PRODUCTION_RELEASE_APPROVED=true` is set by the owner only.
 - Do not enable real client intake while `web/privacy.html` and `web/terms.html` are review drafts.
+
+## Handing over to another coding agent (Codex)
+Read `docs/CODEX_HANDOFF.md` first: current state, open items, local build loop, release flow and hard rules. The command guard in `.claude/hooks/` only protects Claude Code, so another agent must follow `CLAUDE.md` prohibitions itself: no push to `main`, no force push, no merge, no SQL on Supabase, no Render changes or deploys, no secrets in files or output.

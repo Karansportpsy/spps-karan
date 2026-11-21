@@ -53,9 +53,10 @@ is generated from `migrations/XXXX_*.sql` (`python tools/v2_serial_sql.py`) and 
 | 44 | `43_0042_v2_appointment_only_directory.sql` | v2 migration. |
 | 45 | `44_0043_v2_practitioner_services.sql` | Practitioner service catalogue and appointment requests from the directory. |
 | 46 | `45_0044_v2_service_snapshot_fk_index.sql` | v2 migration. |
-| 47 | `v2_verify.sql` | Read-only check of the whole v1 + v2 database (run after step 41; expected values at the top). |
-| 48 | `98_verify.sql` | Read-only check of the v1 objects (run after the serial files; v1 expected values). |
-| 49 | `99_set_role_passwords.sql` | Template: set the four login-role passwords (edit a copy, never save it). |
+| 47 | `46_0045_v2_appointments_video.sql` | Appointment metadata, past-state guards, service snapshots on proposals and the 10-minute video opening window. |
+| 48 | `v2_verify.sql` | Read-only check of the whole v1 + v2 database (run after step 47; expected values at the top). |
+| 49 | `98_verify.sql` | Read-only check of the v1 objects (run after the serial files; v1 expected values). |
+| 50 | `99_set_role_passwords.sql` | Template: set the four login-role passwords (edit a copy, never save it). |
 
 ## Source migrations (`migrations/`)
 
@@ -106,6 +107,8 @@ is generated from `migrations/XXXX_*.sql` (`python tools/v2_serial_sql.py`) and 
 - `0042_v2_appointment_only_directory.sql` → `supabase/sql/43_0042_v2_appointment_only_directory.sql` — v2 migration.
 - `0043_v2_practitioner_services.sql` → `supabase/sql/44_0043_v2_practitioner_services.sql` — Practitioner service catalogue and appointment requests from the directory.
 - `0044_v2_service_snapshot_fk_index.sql` → `supabase/sql/45_0044_v2_service_snapshot_fk_index.sql` — v2 migration.
+
+- `0045_v2_appointments_video.sql` → `supabase/sql/46_0045_v2_appointments_video.sql` — Expand-only Phase 3 functions, created/replaced under the identity owner. Run after 0044 and before Phase 3 code; no table, policy or existing execute grant widened.
 
 After the serial files, run `v2_verify.sql` (whole database; expected values at the top), optionally
 `98_verify.sql` (v1 objects only; its counts describe a v1-only database), then

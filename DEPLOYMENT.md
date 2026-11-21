@@ -16,7 +16,7 @@ Secrets (passwords, database URLs) go only into Supabase and Render, never into 
 ## 1. Supabase project
 
 1. Create a new project. Note the **project ref** (20 characters, in the project URL) and the region.
-2. SQL editor: run every file in `supabase/sql/` **in filename order**, `00_…` to `43_…` (44 files), one at a time
+2. SQL editor: run every file in `supabase/sql/` **in filename order**, `00_…` to `46_…` (47 files), one at a time
    (v2: the full ordered list is in "v2 release, step by step" below and in `MIGRATIONS.md`).
    Each file is a single transaction: if one fails, nothing from that file is applied. Stop and fix before continuing.
    A project that already ran `00_…` to `30_…` only needs the later files (`31_…`, `32_…`: indexes only), in order.
@@ -167,7 +167,8 @@ below can be undone.
 | 11 | `43_0042_v2_appointment_only_directory.sql` | **contract step - run only AFTER the booking-only code is live.** Removes the enquiry tables/functions. Refuses to run (drops nothing) if any enquiry row exists; export or delete those rows first |
 | 12 | `44_0043_v2_practitioner_services.sql` | **expand step - run BEFORE deploying the phase 2 (services and directory booking) code**; the release that is live keeps working after it. Adds `practitioner_services`, `directory_service_snapshot`, three identity columns and five identity functions (created as `spps_identity_owner`). Rollback: restore the backup taken above |
 | 13 | `45_0044_v2_service_snapshot_fk_index.sql` | adds one index (covering the tenant foreign key of `directory_service_snapshot`); safe to run more than once; run right after step 12 |
-| 14 | `v2_verify.sql` | read-only; compare with the expected values at the top (after step 13: 63 / 36 tables, policies 96 / 96, 12 v2 migrations, missing v2 tables `(none)`; the three safety rows stay 0) |
+| 14 | `46_0045_v2_appointments_video.sql` | **expand step — run after 0044 and BEFORE Phase 3 code**. Updates identity functions as `spps_identity_owner`; no data rewrite or new tables. |
+| 15 | `v2_verify.sql` | read-only; after 0045: tables 63 / 36, policies 96 / 96, 13 v2 migrations, missing v2 tables `(none)`; all three safety rows 0. |
 
 The new code refuses to start (and `/health/ready` stays red) until steps 2–10 (and, for the phase 2 code, steps 12 and 13) have
 run, so run the SQL **before**
@@ -295,3 +296,68 @@ and redeploy). The same `rotate` encrypts notes written before encryption was sw
 
 Optional: `SPPS_CLOSURE_NOTICE_DAYS` (default 30) and `SPPS_CLOSURE_COOLING_OFF_DAYS` (default 14). Rollback:
 set the flag to `false`; nothing is deleted by switching it off, and closures already completed stay completed.
+
+
+## Phase 3 — appointments and video (owner-operated release only)
+
+For an existing installation already through 0044, the exact SQL order is:
+1. Back up, then run `supabase/sql/46_0045_v2_appointments_video.sql` once as the normal installer.
+2. Run `supabase/sql/v2_verify.sql`: tables `spps_dev=63`, `spps_identity_dev=36`; policies `96 / 96`;
+   `force_rls_missing=0`, `api_roles_with_access=0`, `anon_execute_on_definer=0`; `v2 migrations=13`;
+   `missing v2 tables=(none)`. Login roles remain the existing four restricted roles.
+3. Only after verification, release the Phase 3 code through the owner's GitHub/Render process.
+
+The migration is expand-only and replaces identity functions inside `SET LOCAL ROLE spps_identity_owner`
+and `RESET ROLE`; the installer must be a member of that role and have SELECT/INSERT on the migration ledger (the serial wrapper uses ON CONFLICT).
+Test the generated serial file as a non-superuser installer before using the hosted database. Do not rerun
+or edit earlier serial files. The startup preflight requires the new `portal_booking_details` function.
+
+Use Appointments → Pending / Approved / Declined / Past. Times are stored in UTC and displayed in the
+viewer's local time zone. A pending first directory request discloses only display name, service and slot;
+its note and guardian details stay hidden. Accepted proposals for an unapproved request return to pending
+approval; approving that request creates the minimal athlete record and activates the existing pending link.
+Decline reasons are optional fixed phrases. No appointment decision or reschedule is allowed after its start.
+
+Video opens only for CONFIRMED online appointments from start minus 10 minutes through end plus 15 minutes
+(inclusive). Both ticket issuance and every ticket check use the database window. Existing consent, guardian
+booking authority, active-link and final-room-closure checks still apply. A third account cannot issue a ticket.
+The consent screen and `room.html` use the existing two-peer signalling design; there is no recording.
+
+A working TURN relay is required before offering reliable online appointments across different networks.
+STUN alone cannot relay media through restrictive NAT/firewalls; without ICE configuration only host candidates
+are used. Configure coturn with `use-auth-secret`, or an equivalent compatible relay, and provision matching
+values outside the repository. Safe example (also in tracked env examples):
+
+```text
+MODEL_C_ICE_URLS=turns:turn.example.org:443?transport=tcp
+MODEL_C_TURN_SECRET=<at-least-32-character-shared-secret>
+```
+
+`MODEL_C_ICE_URLS` accepts comma-separated `stun:`, `turn:` and `turns:` URLs. Prefer TURN over TLS on port 443
+and offer UDP TURN where possible. `MODEL_C_TURN_SECRET` stays server-side; browsers receive only derived,
+expiring credentials. Static TURN username/password are rejected in staging/production. Optional
+`MODEL_C_TURN_TTL_SECONDS` defaults to 3600 (clamped to 300–7200); `MODEL_C_ICE_TRANSPORT_POLICY=relay`
+can force relay-only during the owner's two-account network test. Verify relay candidates connect between
+separate networks before real use. Existing `SPPS_PORTAL_ENABLED` gates video/bookings; no new flag is added.
+
+No hosted SQL, Render environment change, push, PR, merge or deploy is performed by local Phase 3 work.
+
+
+### Local Phase 3 PostgreSQL validation on Windows (Docker only)
+
+Use the independent sanctioned slot; its lifecycle checks Compose labels, loopback binding and tmpfs storage.
+These commands create fictional test databases and ignored disposable credentials only, never a hosted target:
+
+```powershell
+$env:PYTHONUTF8='1'
+$env:SPPS_EPHEMERAL_SLOT='2'
+$env:SPPS_V2_PG_DOCKER='1'
+python -m tools.v2_pg_harness up
+$env:SPPS_V2_PG_ENV=(Join-Path (Get-Location) 'output/test-ephemeral-2/v2.env')
+python -m pytest tests_v2_pg -q -p no:cacheprovider
+python -m tools.v2_pg_harness down
+```
+
+The harness delegates cluster creation/destruction to `tools.ephemeral_db`; the suite rechecks every URL with
+`tools.ephemeral_guard`. Never set the CI bypass flag locally. Credentials are generated and consumed by the
+harness and tests; do not print the env file or commit it. Run cleanup after tests, even if a test fails.

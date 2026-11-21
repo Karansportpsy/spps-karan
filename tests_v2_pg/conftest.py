@@ -26,6 +26,10 @@ def _load() -> dict:
         pytest.skip("throwaway PostgreSQL not running (python tools/v2_pg_harness.py up)")
     values = dict(line.split("=", 1) for line in ENV_FILE.read_text().splitlines() if "=" in line)
     for key, url in values.items():
+        if os.getenv("SPPS_V2_PG_DOCKER") == "1":
+            from tools.ephemeral_guard import verify_ephemeral_target
+            verify_ephemeral_target(url)
+            continue
         u = make_url(url)
         if u.host != "127.0.0.1" or u.port != 55437 or not ((u.database or "").startswith("spps_dev_v2")
                                                              or u.database == "spps_dev_identity"):

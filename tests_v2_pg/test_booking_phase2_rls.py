@@ -318,7 +318,7 @@ def test_decline_closes_the_pending_link_and_a_new_request_can_follow(booking_ap
     a, person, _ = portal_account(booking_app)
     consent(a, person, pr["id"])
     booking = request(a, pr, service_id, slot_id, person).json()["booking_id"]
-    r = p.post(f"/api/booking-requests/{booking}/decision", json={"decision": "decline", "reason": "Fictional"})
+    r = p.post(f"/api/booking-requests/{booking}/decision", json={"decision": "decline", "reason": "Unavailable at this time"})
     assert r.status_code == 200 and r.json()["status"] == "DECLINED"
     assert q(id_superuser, """SELECT status FROM spps_identity_dev.practitioner_athlete_links
                               WHERE person_id=%(p)s AND practitioner_id=%(r)s""", {"p": person, "r": pr["id"]}) == [("DECLINED",)]
@@ -364,7 +364,7 @@ def test_minor_cannot_be_booked_without_verified_guardian_authority(booking_app,
     ok = request(g3, pr, service_id, slot_id, dep3)
     assert ok.status_code == 201, ok.text
     row = [b for b in p.get("/api/booking-requests").json() if b["booking_id"] == ok.json()["booking_id"]][0]
-    assert row["via_guardian"] is True and row["first_request"] is True
+    assert row["first_request"] is True and "via_guardian" not in row and "client_note" not in row
 
 
 def test_approval_rechecks_guardian_authority(booking_app, pgenv, superuser, tenant_id, id_superuser):

@@ -60,6 +60,7 @@ MIGRATION_OBJECTS: dict[str, list[tuple[str, str]]] = {
         ("function", "practitioner_decline_directory_link"),
     ],
     "0044_v2_service_snapshot_fk_index.sql": [("table", "directory_service_snapshot")],  # index only
+    "0045_v2_appointments_video.sql": [("function", "portal_booking_details")],
 }
 # flag -> migrations that must have been run before the flag may be switched on
 FLAG_MIGRATIONS: dict[str, list[str]] = {}
